@@ -57,19 +57,21 @@ public:
     {
         val_true.setValue(true);
         
-        targetLevel = 0.000f;   //Start Muted
+        muted ? targetLevel = 0.0f : targetLevel = 0.1f;
+        sliderLevel = 0.1f;     //Default slider Level
         button_presses = 0;
 
+        levelSlider.setSliderStyle(juce::Slider::SliderStyle::LinearVertical);
         levelSlider.setRange (0.0, 0.25);
-        levelSlider.setValue (targetLevel, juce::dontSendNotification);
-        levelSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 100, 20);
+        levelSlider.setValue (sliderLevel, juce::dontSendNotification);
+        levelSlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 100, 20);
         levelSlider.onValueChange = [this]
         {
-            targetLevel = (float) levelSlider.getValue();
+            sliderLevel = (float) levelSlider.getValue();
             samplesToTarget = rampLengthSamples;
         };
 
-        levelLabel.setText ("Noise Level", juce::dontSendNotification);
+        levelLabel.setText ("White Noise", juce::dontSendNotification);
         updateClickCountLabel(0);
 
         addAndMakeVisible (&levelSlider);
@@ -103,16 +105,21 @@ public:
     {
         auto numSamplesRemaining = bufferToFill.numSamples;
         auto offset = 0;
-
+        
+        /*
+         *  Perform Fade to Target Value
+         */
         if (samplesToTarget > 0)
         {
+            muted ? targetLevel = 0.0f : targetLevel = sliderLevel;
             auto levelIncrement = (targetLevel - currentLevel) / (float) samplesToTarget;
             auto numSamplesThisTime = juce::jmin (numSamplesRemaining, samplesToTarget);
 
             for (auto sample = 0; sample < numSamplesThisTime; ++sample)
             {
-                for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel)
+                for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
                     bufferToFill.buffer->setSample (channel, sample, random.nextFloat() * currentLevel);
+                }
 
                 currentLevel += levelIncrement;
                 --samplesToTarget;
@@ -125,6 +132,9 @@ public:
                 currentLevel = targetLevel;
         }
 
+        /*
+         *  Generate White Noise at Constant Level (After Fade to Target)
+         */
         if (numSamplesRemaining > 0)
         {
             for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel)
@@ -141,11 +151,26 @@ public:
 
     void resized() override     //Called whenever the GUI Window is resized (including Initialization)
     {
-        levelLabel.setBounds (10, 10, 90, 20);
-        levelSlider.setBounds (100, 10, getWidth() - 110, 20);
-        clickCountLabel.setBounds(10, 40, 80, 80);
+        static const unsigned int THEME_CENTER_LINE = 60;
+        static const unsigned int THEME_STANDARD_X_SPACING = 10;        //e.g. space between buttons in a row.
+        static const unsigned int THEME_STANDARD_Y_SPACING = 10;        //e.g. space between buttons in a column.
+        static const unsigned int NOISE_ACTIVE_BUTTON_WIDTH = 60;
+        static const unsigned int NOISE_ACTIVE_BUTTON_HEIGHT = 28;
+        static const unsigned int NOISE_ACTIVE_BUTTON_POS_X = 10;
+        const unsigned int noise_active_button_pos_y = getHeight() - 60;
+        static const unsigned int CLICK_COUNT_LABEL_POS_X = NOISE_ACTIVE_BUTTON_POS_X;
+        const unsigned int click_count_label_pos_y = noise_active_button_pos_y + NOISE_ACTIVE_BUTTON_HEIGHT;
         
-        noiseActiveButton.setBounds ( 10, getHeight() - 60, 120, 32);
+        levelLabel.setBounds (10, 10, 90, 20);
+        levelLabel.setCentrePosition( THEME_CENTER_LINE, 20);
+        
+        levelSlider.setBounds (10, 40, 100, noise_active_button_pos_y - NOISE_ACTIVE_BUTTON_HEIGHT - THEME_STANDARD_Y_SPACING - 15);
+        
+        clickCountLabel.setBounds( CLICK_COUNT_LABEL_POS_X, click_count_label_pos_y, 80, 80);
+        clickCountLabel.setCentrePosition( THEME_CENTER_LINE, click_count_label_pos_y);
+        
+        noiseActiveButton.setBounds ( THEME_STANDARD_X_SPACING, noise_active_button_pos_y, NOISE_ACTIVE_BUTTON_WIDTH, NOISE_ACTIVE_BUTTON_HEIGHT);
+        noiseActiveButton.setCentrePosition( THEME_CENTER_LINE, noise_active_button_pos_y);
     }
 
     void resetParameters()
@@ -156,14 +181,17 @@ public:
     
     void noiseActiveButtonClicked(){
         updateClickCountLabel(++button_presses);
+        samplesToTarget = rampLengthSamples;        //add ramping down to 0 or up to slider level;
         
         if( noiseActiveButton.getToggleStateValue() == val_true ){
-            levelSlider.setValue(0.1);
-            noiseActiveButton.setButtonText("Noise Active");
+            muted = false;
+            targetLevel = sliderLevel;      //Fade to Target Level
+            noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
         }else{
-            levelSlider.setValue(0.0);
-            noiseActiveButton.setButtonText("Noise Muted");
+            muted = true;
+            targetLevel = 0.0;              //Fade to Mute
+            noiseActiveButton.setButtonText("Muted");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonColourId, juce::Colours::red);
         }
     }
@@ -182,10 +210,12 @@ private:
     
     float currentLevel;
     float targetLevel;
+    float sliderLevel;
     int samplesToTarget;
     unsigned int button_presses;
+    bool muted = true;     //Start Muted
 
-    static constexpr auto rampLengthSamples = 128;
+    static constexpr auto rampLengthSamples = 512;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainContentComponent)
 };
