@@ -47,7 +47,7 @@
 
 #pragma once
 
-//#include <stdio.h>
+#include "GUI_Themes.h"
 
 //==============================================================================
 class MainContentComponent   :  public juce::AudioAppComponent
@@ -151,26 +151,19 @@ public:
 
     void resized() override     //Called whenever the GUI Window is resized (including Initialization)
     {
-        static const unsigned int THEME_CENTER_LINE = 60;
-        static const unsigned int THEME_STANDARD_X_SPACING = 10;        //e.g. space between buttons in a row.
-        static const unsigned int THEME_STANDARD_Y_SPACING = 10;        //e.g. space between buttons in a column.
-        static const unsigned int NOISE_ACTIVE_BUTTON_WIDTH = 60;
-        static const unsigned int NOISE_ACTIVE_BUTTON_HEIGHT = 28;
-        static const unsigned int NOISE_ACTIVE_BUTTON_POS_X = 10;
         const unsigned int noise_active_button_pos_y = getHeight() - 60;
-        static const unsigned int CLICK_COUNT_LABEL_POS_X = NOISE_ACTIVE_BUTTON_POS_X;
-        const unsigned int click_count_label_pos_y = noise_active_button_pos_y + NOISE_ACTIVE_BUTTON_HEIGHT;
-        
+        const unsigned int click_count_label_pos_y = noise_active_button_pos_y + GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT;
+    
         levelLabel.setBounds (10, 10, 90, 20);
-        levelLabel.setCentrePosition( THEME_CENTER_LINE, 20);
+        levelLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, 20);
         
-        levelSlider.setBounds (10, 40, 100, noise_active_button_pos_y - NOISE_ACTIVE_BUTTON_HEIGHT - THEME_STANDARD_Y_SPACING - 15);
+        levelSlider.setBounds (10, 40, 100, noise_active_button_pos_y - GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT - GUI_Themes::THEME_STANDARD_Y_SPACING - 15);
         
-        clickCountLabel.setBounds( CLICK_COUNT_LABEL_POS_X, click_count_label_pos_y, 80, 80);
-        clickCountLabel.setCentrePosition( THEME_CENTER_LINE, click_count_label_pos_y);
+        clickCountLabel.setBounds( GUI_Themes::CLICK_COUNT_LABEL_POS_X, click_count_label_pos_y, 80, 80);
+        clickCountLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, click_count_label_pos_y);
         
-        noiseActiveButton.setBounds ( THEME_STANDARD_X_SPACING, noise_active_button_pos_y, NOISE_ACTIVE_BUTTON_WIDTH, NOISE_ACTIVE_BUTTON_HEIGHT);
-        noiseActiveButton.setCentrePosition( THEME_CENTER_LINE, noise_active_button_pos_y);
+        noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, noise_active_button_pos_y, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
+        noiseActiveButton.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, noise_active_button_pos_y);
     }
 
     void resetParameters()
@@ -188,11 +181,13 @@ public:
             targetLevel = sliderLevel;      //Fade to Target Level
             noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
+            DBG("White Noise ON");
         }else{
             muted = true;
             targetLevel = 0.0;              //Fade to Mute
             noiseActiveButton.setButtonText("Muted");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonColourId, juce::Colours::red);
+            DBG("White Noise OFF");
         }
     }
 
