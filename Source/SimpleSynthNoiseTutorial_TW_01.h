@@ -104,45 +104,28 @@ public:
     void getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill) override
     {
         auto numSamplesRemaining = bufferToFill.numSamples;
-        auto offset = 0;
         
-        /*
-         *  Perform Fade to Target Value
-         */
-        if (samplesToTarget > 0)
+        auto levelIncrement = 0.0f;                                 //default to constant level
+        muted ? targetLevel = 0.0f : targetLevel = sliderLevel;     //Apply Mute to White Noise
+        
+        if( currentLevel != targetLevel )               //Fade To Target Level
         {
-            muted ? targetLevel = 0.0f : targetLevel = sliderLevel;
-            auto levelIncrement = (targetLevel - currentLevel) / (float) samplesToTarget;
-            auto numSamplesThisTime = juce::jmin (numSamplesRemaining, samplesToTarget);
-
-            for (auto sample = 0; sample < numSamplesThisTime; ++sample)
-            {
-                for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
-                    bufferToFill.buffer->setSample (channel, sample, random.nextFloat() * currentLevel);
-                }
-
-                currentLevel += levelIncrement;
-                --samplesToTarget;
+            levelIncrement = (targetLevel - currentLevel) / (float) samplesToTarget;
+//            printf( "Fade from Current (%f) to Target (%f) Level. Step Val = %f\r\n", currentLevel, targetLevel, levelIncrement);
+        }
+        
+        for (auto sample = 0; sample < numSamplesRemaining; ++sample)
+        {
+            for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
+                bufferToFill.buffer->setSample (channel, sample, random.nextFloat() * currentLevel);
             }
 
-            offset = numSamplesThisTime;
-            numSamplesRemaining -= numSamplesThisTime;
-
-            if (samplesToTarget == 0)
+            currentLevel += levelIncrement;      //increment = 0 when target == current
+            
+            if(--samplesToTarget <= 0){     //If Fade to Target Complete. NOTE: An improvement to the "fade" system would be fading by a dB/sample rate, rather than a fixed num steps.
                 currentLevel = targetLevel;
-        }
-
-        /*
-         *  Generate White Noise at Constant Level (After Fade to Target)
-         */
-        if (numSamplesRemaining > 0)
-        {
-            for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel)
-            {
-                auto* buffer = bufferToFill.buffer->getWritePointer (channel, bufferToFill.startSample + offset);
-
-                for (auto sample = 0; sample < numSamplesRemaining; ++sample)
-                    *buffer++ = random.nextFloat() * currentLevel;
+                levelIncrement = 0;
+                samplesToTarget = rampLengthSamples;
             }
         }
     }
@@ -151,9 +134,11 @@ public:
 
     void resized() override     //Called whenever the GUI Window is resized (including Initialization)
     {
+        //Update any dynamic positions, dependent on window resizing
         const unsigned int noise_active_button_pos_y = getHeight() - 60;
         const unsigned int click_count_label_pos_y = noise_active_button_pos_y + GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT;
     
+        //Redraw GUI Objects.
         levelLabel.setBounds (10, 10, 90, 20);
         levelLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, 20);
         
@@ -181,13 +166,13 @@ public:
             targetLevel = sliderLevel;      //Fade to Target Level
             noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
-            DBG("White Noise ON");
+//            DBG("White Noise ON");
         }else{
             muted = true;
             targetLevel = 0.0;              //Fade to Mute
             noiseActiveButton.setButtonText("Muted");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonColourId, juce::Colours::red);
-            DBG("White Noise OFF");
+//            DBG("White Noise OFF");
         }
     }
 
