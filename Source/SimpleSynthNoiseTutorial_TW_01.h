@@ -104,12 +104,13 @@ public:
     void getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill) override
     {
         auto numSamplesRemaining = bufferToFill.numSamples;
-        
+        bool inFade = false;                                        //default inFade = false
         auto levelIncrement = 0.0f;                                 //default to constant level
         muted ? targetLevel = 0.0f : targetLevel = sliderLevel;     //Apply Mute to White Noise
         
         if( currentLevel != targetLevel )               //Fade To Target Level
         {
+            inFade = true;
             levelIncrement = (targetLevel - currentLevel) / (float) samplesToTarget;
 //            printf( "Fade from Current (%f) to Target (%f) Level. Step Val = %f\r\n", currentLevel, targetLevel, levelIncrement);
         }
@@ -120,12 +121,14 @@ public:
                 bufferToFill.buffer->setSample (channel, sample, random.nextFloat() * currentLevel);
             }
 
-            currentLevel += levelIncrement;      //increment = 0 when target == current
+            currentLevel += levelIncrement;      //increment = 0.0f when target == current
             
-            if(--samplesToTarget <= 0){     //If Fade to Target Complete. NOTE: An improvement to the "fade" system would be fading by a dB/sample rate, rather than a fixed num steps.
+            if(inFade == true && --samplesToTarget <= 0){     //If Fade to Target Complete. NOTE: Fade could be improved to change at dB/sample rate, rather than a fixed num steps.
                 currentLevel = targetLevel;
-                levelIncrement = 0;
-                samplesToTarget = rampLengthSamples;
+                levelIncrement = 0.0f;
+                samplesToTarget = rampLengthSamples;          //Note: The "sampleToTarget" counter could also be removed if we use a dB/sample gradient. 
+                inFade = false;
+//                printf("Fade To Target Level (%f), Complete\r\n", targetLevel);
             }
         }
     }
