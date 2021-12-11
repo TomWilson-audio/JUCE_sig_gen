@@ -7,7 +7,7 @@
 */
 
 #include <JuceHeader.h>
-#include "SimpleSynthNoiseTutorial_TW_01.h"
+#include "SimpleSynth.h"
 
 #define APPLICATION_NAME "Noise Generator"
 

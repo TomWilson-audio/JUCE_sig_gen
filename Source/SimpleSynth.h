@@ -48,6 +48,7 @@
 #pragma once
 
 #include "GUI_Themes.h"
+#include "SigGen.h"
 
 //==============================================================================
 class MainContentComponent   :  public juce::AudioAppComponent
@@ -55,9 +56,9 @@ class MainContentComponent   :  public juce::AudioAppComponent
 public:
     MainContentComponent()
     {
-        val_true.setValue(true);
-        
-        muted ? targetLevel = 0.0f : targetLevel = 0.1f;
+        val_true.setValue(true);    //This is stupid. "val_true" is only used as a constant-true as consitional in button state check. There must be a jucier way to do this. 
+
+        WhiteNoise_0.Mute(true);                  //Init Muted.
         sliderLevel = 0.1f;     //Default slider Level
         button_presses = 0;
 
@@ -68,7 +69,7 @@ public:
         levelSlider.onValueChange = [this]
         {
             sliderLevel = (float) levelSlider.getValue();
-            samplesToTarget = rampLengthSamples;
+            WhiteNoise_0.SetAmplitude(sliderLevel);
         };
 
         levelLabel.setText ("White Noise", juce::dontSendNotification);
@@ -104,31 +105,13 @@ public:
     void getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill) override
     {
         auto numSamplesRemaining = bufferToFill.numSamples;
-        bool inFade = false;                                        //default inFade = false
-        auto levelIncrement = 0.0f;                                 //default to constant level
-        muted ? targetLevel = 0.0f : targetLevel = sliderLevel;     //Apply Mute to White Noise
-        
-        if( currentLevel != targetLevel )               //Fade To Target Level
-        {
-            inFade = true;
-            levelIncrement = (targetLevel - currentLevel) / (float) samplesToTarget;
-//            printf( "Fade from Current (%f) to Target (%f) Level. Step Val = %f\r\n", currentLevel, targetLevel, levelIncrement);
-        }
         
         for (auto sample = 0; sample < numSamplesRemaining; ++sample)
         {
             for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
-                bufferToFill.buffer->setSample (channel, sample, random.nextFloat() * currentLevel);
-            }
-
-            currentLevel += levelIncrement;      //increment = 0.0f when target == current
-            
-            if(inFade == true && --samplesToTarget <= 0){     //If Fade to Target Complete. NOTE: Fade could be improved to change at dB/sample rate, rather than a fixed num steps.
-                currentLevel = targetLevel;
-                levelIncrement = 0.0f;
-                samplesToTarget = rampLengthSamples;          //Note: The "sampleToTarget" counter could also be removed if we use a dB/sample gradient. 
-                inFade = false;
-//                printf("Fade To Target Level (%f), Complete\r\n", targetLevel);
+                //TODO: Sum and Mix all Generated Signals
+                float output = WhiteNoise_0.getSample();
+                bufferToFill.buffer->setSample (channel, sample, output);
             }
         }
     }
@@ -156,23 +139,19 @@ public:
 
     void resetParameters()
     {
-        currentLevel = targetLevel;
-        samplesToTarget = 0;
     }
     
     void noiseActiveButtonClicked(){
         updateClickCountLabel(++button_presses);
-        samplesToTarget = rampLengthSamples;        //add ramping down to 0 or up to slider level;
-        
+    
         if( noiseActiveButton.getToggleStateValue() == val_true ){
-            muted = false;
-            targetLevel = sliderLevel;      //Fade to Target Level
             noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
+            WhiteNoise_0.Mute(false);
+            WhiteNoise_0.SetAmplitude(sliderLevel);  //Set Amplitude to Slider Value
 //            DBG("White Noise ON");
         }else{
-            muted = true;
-            targetLevel = 0.0;              //Fade to Mute
+            WhiteNoise_0.Mute(true);
             noiseActiveButton.setButtonText("Muted");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonColourId, juce::Colours::red);
 //            DBG("White Noise OFF");
@@ -180,6 +159,9 @@ public:
     }
 
 private:
+    
+    WhiteNoiseGen WhiteNoise_0;
+    
     juce::Random random;
     juce::Slider levelSlider;
     juce::Label levelLabel;
@@ -191,14 +173,8 @@ private:
         clickCountLabel.setText( (juce::String("Presses: ")+juce::String(count)), juce::dontSendNotification);
     }
     
-    float currentLevel;
-    float targetLevel;
     float sliderLevel;
-    int samplesToTarget;
     unsigned int button_presses;
-    bool muted = true;     //Start Muted
-
-    static constexpr auto rampLengthSamples = 512;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainContentComponent)
 };
