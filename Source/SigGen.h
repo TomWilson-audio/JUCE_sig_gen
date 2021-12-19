@@ -15,6 +15,10 @@
 
 class SigGen{
 public:
+    
+    SigGen() {}
+    virtual ~SigGen(){}
+    
     virtual float CalcSample() = 0;         //Calc Sample is specialised for all signal types.
     
     float getSample( void ){
@@ -35,6 +39,12 @@ public:
         SetTargetAmplitude(value);
     }
     
+    /*  //Used to attach LFOs and other control signals that need to bypass amplitude ramping
+     *  constexpr inline void ModulateAmplitude(float modify){
+     *      amplitude += modify;
+     *  }
+     */
+    
     void Mute( bool state )
     {
         muted = state;
@@ -45,8 +55,6 @@ public:
             SetTargetAmplitude(unmutedAmplitude);
         }
     }
-    
-    virtual ~SigGen(){};
     
 protected:
     float targetAmplitude = 0.0f;
@@ -75,13 +83,81 @@ private:
 class WhiteNoiseGen : public SigGen
 {
 public:
-    ~WhiteNoiseGen(){};
+    WhiteNoiseGen(){}
+    ~WhiteNoiseGen(){}
     
     float CalcSample() override
     {
-        return random.nextFloat() * amplitude;;
+        return amplitude * random.nextFloat();
     }
     
 private:
     juce::Random random;
+};
+
+class PeriodicOscillator : public SigGen
+{
+public:
+    PeriodicOscillator(){}
+    ~PeriodicOscillator(){}
+    
+    void SetSampleRate( float rate ){
+        fS = rate;
+    }
+    
+    void SetFrequency(float f)
+    {
+        cyclesPerSample = f / (float)fS;
+        angleDelta = cyclesPerSample * juce::MathConstants<float>::twoPi;
+    }
+    
+    void updateAngle()
+    {
+        currentAngle += angleDelta;
+        if (currentAngle >= juce::MathConstants<float>::twoPi)
+            currentAngle = 0;
+    }
+    
+protected:
+    float fS = 48000;       //default to 48K.
+    float cyclesPerSample;
+    float currentAngle = 0.0, angleDelta = 0.0;
+    
+private:
+
+};
+
+class SineWaveOscillator : public PeriodicOscillator
+{
+public:
+    SineWaveOscillator(){}
+    ~SineWaveOscillator(){}
+    
+    float CalcSample() override
+    {
+        auto currentSample = std::sin(currentAngle);
+        updateAngle();
+        return amplitude * currentSample;
+    }
+    
+private:
+
+};
+
+class SquareWaveOscillator : public PeriodicOscillator      
+{
+public:
+    SquareWaveOscillator(){}
+    ~SquareWaveOscillator(){}
+    
+    float CalcSample() override
+    {
+        float sample = amplitude * 0.5;
+        if( currentAngle >= juce::MathConstants<float>::pi )    //TODO: you could add duty cycle control here.
+            sample *= -1.0;
+        updateAngle();
+        return sample;
+    }
+    
+private:
 };

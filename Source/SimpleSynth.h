@@ -56,7 +56,12 @@ class MainContentComponent   :  public juce::AudioAppComponent
 public:
     MainContentComponent()
     {
-        val_true.setValue(true);    //This is stupid. "val_true" is only used as a constant-true as consitional in button state check. There must be a jucier way to do this. 
+        val_true.setValue(true);    //This is stupid. "val_true" is only used as a constant-true as consitional in button state check. There must be a jucier way to do this.
+        
+        GUI_Themes::SigGenerator::init_config_t sine_gui_0_config;
+        sine_gui_0_config.slider_level = 0.0;
+        //TODO: set all non-default configs
+        SineGUI_0.Init(&sine_gui_0_config);
 
         WhiteNoise_0.Mute(true);                  //Init Muted.
         sliderLevel = 0.1f;     //Default slider Level
@@ -73,11 +78,9 @@ public:
         };
 
         levelLabel.setText ("White Noise", juce::dontSendNotification);
-        updateClickCountLabel(0);
 
         addAndMakeVisible (&levelSlider);
         addAndMakeVisible (&levelLabel);
-        addAndMakeVisible (&clickCountLabel);
         
         //Add "Noise Active" Button:
         addAndMakeVisible(&noiseActiveButton);
@@ -87,18 +90,39 @@ public:
         noiseActiveButtonClicked();                                             //Call the buttonClick() Function to initialise all states.
 //        noiseActiveButton.setRepaintsOnMouseActivity(true);
 
-        setSize (800, 200);
+        setSize (1024, 512);
 
-        setAudioChannels (0, 2);
+        // Some platforms require permissions to open input channels so request that here
+        if (juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
+            && ! juce::RuntimePermissions::isGranted (juce::RuntimePermissions::recordAudio))
+        {
+            juce::RuntimePermissions::request (juce::RuntimePermissions::recordAudio,
+                                               [&] (bool granted) { setAudioChannels (granted ? 2 : 0, 2); });
+        }
+        else
+        {
+            // Specify the number of input and output channels that we want to open
+            setAudioChannels (0, 2);
+        }
+        
+        printf("MainContentComponent Constructor - SimpleSynth.h\r\n");
     }
 
     ~MainContentComponent() override
     {
+        printf("\r\nSHUTTING DOWN\r\n");
         shutdownAudio();
     }
 
-    void prepareToPlay (int, double) override
+    void prepareToPlay (int, double sampleRate) override
     {
+        printf("\r\nPrepare To Play: SR = %f\r\n", sampleRate);
+        
+        //TODO: Set (or update) SampleRate For All Oscillators
+        SineOsc_0.SetSampleRate( sampleRate );
+        SineOsc_0.SetFrequency(220.0);
+        SineOsc_0.SetAmplitude(0.1);
+        
         resetParameters();
     }
 
@@ -108,9 +132,10 @@ public:
         
         for (auto sample = 0; sample < numSamplesRemaining; ++sample)
         {
+            //TODO: Sum and Mix all Generated Signals
+            float output = WhiteNoise_0.getSample() + SineOsc_0.getSample();
+            
             for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
-                //TODO: Sum and Mix all Generated Signals
-                float output = WhiteNoise_0.getSample();
                 bufferToFill.buffer->setSample (channel, sample, output);
             }
         }
@@ -122,28 +147,32 @@ public:
     {
         //Update any dynamic positions, dependent on window resizing
         const unsigned int noise_active_button_pos_y = getHeight() - 60;
-        const unsigned int click_count_label_pos_y = noise_active_button_pos_y + GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT;
-    
+
         //Redraw GUI Objects.
         levelLabel.setBounds (10, 10, 90, 20);
         levelLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, 20);
         
         levelSlider.setBounds (10, 40, 100, noise_active_button_pos_y - GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT - GUI_Themes::THEME_STANDARD_Y_SPACING - 15);
         
-        clickCountLabel.setBounds( GUI_Themes::CLICK_COUNT_LABEL_POS_X, click_count_label_pos_y, 80, 80);
-        clickCountLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, click_count_label_pos_y);
-        
         noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, noise_active_button_pos_y, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
         noiseActiveButton.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, noise_active_button_pos_y);
+    }
+    
+    //==============================================================================
+    void paint (juce::Graphics& g) override
+    {
+        // (Our component is opaque, so we must completely fill the background with a solid colour)
+        g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+
+        // You can add your drawing code here!
     }
 
     void resetParameters()
     {
     }
     
-    void noiseActiveButtonClicked(){
-        updateClickCountLabel(++button_presses);
-    
+    void noiseActiveButtonClicked()
+    {
         if( noiseActiveButton.getToggleStateValue() == val_true ){
             noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
@@ -161,17 +190,15 @@ public:
 private:
     
     WhiteNoiseGen WhiteNoise_0;
+    SineWaveOscillator SineOsc_0;
     
-    juce::Random random;
     juce::Slider levelSlider;
     juce::Label levelLabel;
     juce::TextButton noiseActiveButton;
-    juce::Label clickCountLabel;
     juce::Value val_true;
     
-    void updateClickCountLabel( unsigned int count ){
-        clickCountLabel.setText( (juce::String("Presses: ")+juce::String(count)), juce::dontSendNotification);
-    }
+    GUI_Themes::coord_t gui_component_pos_0 = {100, 10};
+    GUI_Themes::SigGenerator SineGUI_0;
     
     float sliderLevel;
     unsigned int button_presses;
