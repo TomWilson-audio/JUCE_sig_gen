@@ -9,7 +9,9 @@
 #include <JuceHeader.h>
 #include "SimpleSynth.h"
 
-#define APPLICATION_NAME "Noise Generator"
+#define APPLICATION_NAME        "Signal Generator"
+#define WINDOW_RESIZE_MIN_X     512
+#define WINDOW_RESIZE_MIN_Y     256
 
 class Application    : public juce::JUCEApplication
 {
@@ -31,11 +33,10 @@ private:
     class MainWindow    : public juce::DocumentWindow
     {
     public:
-        MainWindow (const juce::String& name, juce::Component* c, JUCEApplication& a)
-            : DocumentWindow (name, juce::Desktop::getInstance().getDefaultLookAndFeel()
-                                                                .findColour (ResizableWindow::backgroundColourId),
-                              juce::DocumentWindow::allButtons),
-              app (a)
+        MainWindow (const juce::String& name, juce::Component* c, JUCEApplication& a) :
+            DocumentWindow (name,  juce::Colours::lightgrey,
+            juce::DocumentWindow::allButtons),
+            app (a)
         {
             setUsingNativeTitleBar (true);
             setContentOwned (c, true);
@@ -43,8 +44,8 @@ private:
            #if JUCE_ANDROID || JUCE_IOS
             setFullScreen (true);
            #else
-            setResizable (true, false);
-            setResizeLimits (300, 250, 10000, 10000);
+            setResizable (true, true);
+            setResizeLimits (WINDOW_RESIZE_MIN_X, WINDOW_RESIZE_MIN_Y, 10000, 10000);
             centreWithSize (getWidth(), getHeight());
            #endif
 

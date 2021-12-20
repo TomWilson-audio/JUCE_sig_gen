@@ -51,18 +51,16 @@
 #include "SigGen.h"
 
 //==============================================================================
-class MainContentComponent   :  public juce::AudioAppComponent
+class MainContentComponent   :  public juce::AudioAppComponent,
+                                public juce::Button::Listener
 {
 public:
     MainContentComponent()
     {
         val_true.setValue(true);    //This is stupid. "val_true" is only used as a constant-true as consitional in button state check. There must be a jucier way to do this.
         
-        GUI_Themes::SigGenerator::init_config_t sine_gui_0_config;
-        sine_gui_0_config.slider_level = 0.0;
-        //TODO: set all non-default configs
-        SineGUI_0.Init(&sine_gui_0_config);
-
+        addAndMakeVisible (&topScene);     //Add Top Level, Parent Scene for the GUI
+        
         WhiteNoise_0.Mute(true);                  //Init Muted.
         sliderLevel = 0.1f;     //Default slider Level
         button_presses = 0;
@@ -91,6 +89,11 @@ public:
 //        noiseActiveButton.setRepaintsOnMouseActivity(true);
 
         setSize (1024, 512);
+        
+        /*
+         *  Add GUI Listeners (Allowing Audio Processing to Action on any GUI changes!
+         */
+        topScene.AddListenerToAll_GUIActions(this);
 
         // Some platforms require permissions to open input channels so request that here
         if (juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
@@ -145,6 +148,10 @@ public:
 
     void resized() override     //Called whenever the GUI Window is resized (including Initialization)
     {
+        printf("RESIZE!!!\r\n");
+        
+        topScene.setBounds(0, 0, getWidth(), getHeight());
+        
         //Update any dynamic positions, dependent on window resizing
         const unsigned int noise_active_button_pos_y = getHeight() - 60;
 
@@ -159,12 +166,58 @@ public:
     }
     
     //==============================================================================
+    /*
+     *  Also Called on Resize
+     */
     void paint (juce::Graphics& g) override
     {
+        printf("PAINT!!!\r\n");
         // (Our component is opaque, so we must completely fill the background with a solid colour)
-        g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
-        // You can add your drawing code here!
+//        g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+        g.fillAll (juce::Colours::darkgrey);
+     
+        g.setColour (juce::Colours::lightgrey);
+        g.setFont (juce::Font ("Times New Roman", 20.0f, juce::Font::italic));
+        g.drawText ("Signal Sources", getLocalBounds(), juce::Justification::centredTop, true);
+        
+        
+        //Basic Graphics Tutorial Gubbins (for Reference):
+        g.setColour (juce::Colours::green);
+        g.drawLine (10, 300, 590, 300, 5);
+        
+        juce::Line<float> arrowLine(10, 350, 590, 350);
+        g.drawArrow( arrowLine, 5, 25, 25 );
+        
+        juce::Rectangle<float> house (300, 120, 200, 170);
+        g.setColour (juce::Colours::blueviolet);
+//        g.fillRect (house);
+        g.fillCheckerBoard (house, 30, 10, juce::Colours::sandybrown, juce::Colours::saddlebrown);
+        
+        g.setColour (juce::Colours::yellow);
+//        g.drawEllipse (getWidth() - 70, 10, 60, 60, 5);
+        g.fillEllipse (getWidth() - 70, 10, 60, 60);
+        
+        g.setColour (juce::Colours::red);
+        juce::Path roof;
+        roof.addTriangle (300, 110, 500, 110, 400, 70);
+        g.fillPath (roof);
+    }
+    
+    //Handles all Button Clicks from the GUI, so they can be applied to audio Processing
+    void buttonClicked (juce::Button* button) override
+    {
+        if(button == topScene.GetWhiteNoiseGUI_Instance(0)->getMuteButtonInstance()){
+            //TODO: This is a quick test of the button listeners. White Noise GUI within Simple Synth Needs replacing with modular design.
+            printf("AUDIO PROCESSING: Mute[0] Listener Called\r\n");
+            const juce::Button* pressedButton = topScene.GetWhiteNoiseGUI_Instance(0)->getMuteButtonInstance();     //FYI: for code cleanliness
+            
+            //TEST: ECHO Button Press Functionality.
+            noiseActiveButton.setToggleState(pressedButton->getToggleState(), juce::dontSendNotification);
+            noiseActiveButtonClicked();
+        }
+        else if(button == topScene.GetWhiteNoiseGUI_Instance(0)->getMuteButtonInstance()){
+            printf("AUDIO PROCESSING: Mute[1] Listener Called\r\n");
+        }
     }
 
     void resetParameters()
@@ -188,6 +241,7 @@ public:
     }
 
 private:
+    SceneComponent topScene;            //Absolute Top Level Scene for the Main Content Component
     
     WhiteNoiseGen WhiteNoise_0;
     SineWaveOscillator SineOsc_0;
@@ -198,7 +252,6 @@ private:
     juce::Value val_true;
     
     GUI_Themes::coord_t gui_component_pos_0 = {100, 10};
-    GUI_Themes::SigGenerator SineGUI_0;
     
     float sliderLevel;
     unsigned int button_presses;
