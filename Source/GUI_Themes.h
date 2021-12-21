@@ -43,14 +43,11 @@ public:
         float min = 0.0, max = 0.0;
     }level_slider_range_t;
     
-    typedef void (*activeButtonClicked_CB_t)( SigGenVoiceGUI* instance );
-    
     typedef struct Config_S{
         level_slider_range_t level_slider_range = {0.0, 0.25};
         juce::Slider::SliderStyle level_slider_style = juce::Slider::SliderStyle::LinearVertical;   //default Vertical
         float slider_level = 0.0;
         std::string Title = "Sig Gen";
-        activeButtonClicked_CB_t activeButtonClicked_CB = NULL;
     }config_t;
     
     SigGenVoiceGUI(){
@@ -65,14 +62,7 @@ public:
         levelSlider.setSliderStyle(config.level_slider_style);
         levelSlider.setRange (config.level_slider_range.min, config.level_slider_range.max);
         levelSlider.setValue (config.slider_level, juce::dontSendNotification);
-        levelSlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 100, 20);
-//        levelSlider.addListener(Listener *listener)
-        //TODO: Init config should take a user callback for onValue Change. This can be connected to the appropriate oscillator
-//            levelSlider.onValueChange = [this]
-//            {
-//                sliderLevel = (float) levelSlider.getValue();
-//                WhiteNoise_0.SetAmplitude(sliderLevel);
-//            };
+        levelSlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 90, 20);
             
         levelLabel.setText (config.Title, juce::dontSendNotification);
         
@@ -109,11 +99,13 @@ public:
     juce::TextButton* getMuteButtonInstance(void){
         return &noiseActiveButton;
     }
+    
+    juce::Slider* getLevelSliderInstance(void){
+        return &levelSlider;
+    }
 
 private:
     config_t config;
-//    static unsigned int instance_count;
-    unsigned int instance_n;
     
     juce::Slider levelSlider;
     juce::Label levelLabel;
@@ -129,30 +121,16 @@ private:
     
     
     //============================================================
-    //Mouse Click Behaviour Handling.... (including User Callbacks)
-    
+    //Mouse Click Behaviour Handling...
     void noiseActiveButtonClicked( void )
     {
-        bool state = false;     //passed to callBack;
         if( noiseActiveButton.getToggleStateValue() == true ){
-            state = true;
             noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
-                
-//            WhiteNoise_0.Mute(false);
-//            WhiteNoise_0.SetAmplitude(sliderLevel);  //Set Amplitude to Slider Value
-//            DBG("White Noise ON");
         }else{
-//            WhiteNoise_0.Mute(true);
             noiseActiveButton.setButtonText("Muted");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonColourId, juce::Colours::red);
-//            DBG("White Noise OFF");
         }
-        
-        //Execute User Callback
-        if( config.activeButtonClicked_CB )
-            config.activeButtonClicked_CB( this );
-
     }
     
     
@@ -173,63 +151,88 @@ public:
          * Configure and Initialise SigGen GUI components
          */
         SigGenVoiceGUI::config_t whiteNoiseGUI_config;
-        whiteNoiseGUI_config.slider_level = 0.0;
+        whiteNoiseGUI_config.slider_level = 0.1;
          
-        /*
-         *  Subscribe the Top-Level Scene as a listener to Buttons contained in Sub-Modules
-         */
-        for(int noise_gen = 0; noise_gen < N_NOISE_GENS; noise_gen++ ){
+        for(int noise_gen = 0; noise_gen < N_SIG_GEN_VOICE_GUIS; noise_gen++ ){
             
             switch( noise_gen ){
-                case 0: whiteNoiseGUI_config.Title = "Noise 0"; break;
-                case 1: whiteNoiseGUI_config.Title = "Noise 1"; break;
+                case 0: whiteNoiseGUI_config.Title = "White Noise"; break;
+                case 1: whiteNoiseGUI_config.Title = "Sig Gen[0]"; break;
                 default: whiteNoiseGUI_config.Title = "Noise N"; break;
             }
             
-            whiteNoiseGUI[noise_gen].Init( &whiteNoiseGUI_config );
-            addAndMakeVisible (whiteNoiseGUI[noise_gen] );
+            sigGenVoiceGUI[noise_gen].Init( &whiteNoiseGUI_config );
+            addAndMakeVisible (sigGenVoiceGUI[noise_gen] );
         }
     }
     
     /*
      *  Allows Audio Processing Modules to Listen to GUI Actions.
      */
-    void AddListenerToAll_GUIActions( juce::Button::Listener* Listener ){
+    void AddListenerToAll_GUIActions( juce::Button::Listener* ButtonListener, juce::Slider::Listener* SliderListener ){
         //Noise Gens
-        for(int noise_gen = 0; noise_gen < N_NOISE_GENS; noise_gen++ ){
+        for(int noise_gen = 0; noise_gen < N_SIG_GEN_VOICE_GUIS; noise_gen++ ){
             //Buttons
-            whiteNoiseGUI[noise_gen].getMuteButtonInstance()->addListener(Listener);
+            sigGenVoiceGUI[noise_gen].getMuteButtonInstance()->addListener(ButtonListener);
+            
+            //Sliders
+            sigGenVoiceGUI[noise_gen].getLevelSliderInstance()->addListener(SliderListener);
         }
     }
 
     void paint (juce::Graphics& g) override
     {
         g.fillAll (juce::Colours::darkgrey);
+        
+        g.setColour (juce::Colours::lightgrey);
+        g.setFont (juce::Font ("Times New Roman", 20.0f, juce::Font::italic));
+        g.drawText ("Signal Sources", getLocalBounds(), juce::Justification::centredTop, true);
+        
+        //Basic Graphics Tutorial Gubbins (for Reference):
+//        g.setColour (juce::Colours::green);
+//        g.drawLine (10, 300, 590, 300, 5);
+//
+//        juce::Line<float> arrowLine(10, 350, 590, 350);
+//        g.drawArrow( arrowLine, 5, 25, 25 );
+//
+//        juce::Rectangle<float> house (300, 120, 200, 170);
+//        g.setColour (juce::Colours::blueviolet);
+////        g.fillRect (house);
+//        g.fillCheckerBoard (house, 30, 10, juce::Colours::sandybrown, juce::Colours::saddlebrown);
+//
+//        g.setColour (juce::Colours::yellow);
+////        g.drawEllipse (getWidth() - 70, 10, 60, 60, 5);
+//        g.fillEllipse (getWidth() - 70, 10, 60, 60);
+//
+//        g.setColour (juce::Colours::red);
+//        juce::Path roof;
+//        roof.addTriangle (300, 110, 500, 110, 400, 70);
+//        g.fillPath (roof);
     }
 
     void resized() override
     {
         printf("Top Level Scene Resized. %d x %d \r\n", getWidth(), getHeight());
         
-        //TODO: Loop for N_whiteNoise. Configure their const Positioning in Themes Class.
-        whiteNoiseGUI[0].setBounds(500, 10, 100, 250);
-        whiteNoiseGUI[1].setBounds(600, 10, 100, 250);
+        //TODO: Loop for N_WhiteNoise. Configure their const Positioning in Themes Class.
+        sigGenVoiceGUI[0].setBounds(10, 10, 100, 250);
+        sigGenVoiceGUI[1].setBounds(100, 10, 100, 250);
     }
     
     /*
      *  Access to all GUI components.
      */
-    SigGenVoiceGUI* GetWhiteNoiseGUI_Instance(unsigned int instance_n){
-        if( instance_n >= N_NOISE_GENS )
+    SigGenVoiceGUI* GetSigGenGUI_Instance(unsigned int instance_n){
+        if( instance_n >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
             return NULL;
         
-        return &whiteNoiseGUI[instance_n];
+        return &sigGenVoiceGUI[instance_n];
     }
 
 private:
     
-    enum { N_NOISE_GENS = 2 };
-    SigGenVoiceGUI whiteNoiseGUI[N_NOISE_GENS];     //TODO: Change to std::vector so the Num Voices can be changed Dynamically
+    enum { N_SIG_GEN_VOICE_GUIS = 2 };
+    SigGenVoiceGUI sigGenVoiceGUI[N_SIG_GEN_VOICE_GUIS];     //TODO: Change to std::vector so the Num Voices can be changed Dynamically
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SceneComponent)

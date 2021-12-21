@@ -16,7 +16,9 @@
 class SigGen{
 public:
     
-    SigGen() {}
+    SigGen(){
+        SigGenList[instance_count++] = this;
+    }
     virtual ~SigGen(){}
     
     virtual float CalcSample() = 0;         //Calc Sample is specialised for all signal types.
@@ -28,9 +30,6 @@ public:
     
     void SetAmplitude(float value)
     {
-        if( value == targetAmplitude )
-            return;
-        
         if( muted ){
             unmutedAmplitude = value;
             return;
@@ -56,6 +55,12 @@ public:
         }
     }
     
+    static SigGen* GetInstance( unsigned int n ){
+        //TODO: Assert for n >= instance_count;
+        //TODO: Assert for n >= MAX_N_SIGNALS
+        return SigGenList[n];
+    }
+    
 protected:
     float targetAmplitude = 0.0f;
     float amplitude = 0.0f;
@@ -78,7 +83,13 @@ private:
         amplitudeFadeStep = (targetAmplitude - amplitude) / (float) AMPLITUDE_RAMP_LENGTH_SAMPLES;
         rampRemainingSamples = AMPLITUDE_RAMP_LENGTH_SAMPLES;
     }
+    
+    static const unsigned int MAX_N_SIGNALS = 256;
+    static SigGen* SigGenList[MAX_N_SIGNALS];
+    static unsigned int instance_count;
 };
+SigGen* SigGen::SigGenList[SigGen::MAX_N_SIGNALS] = {NULL};
+unsigned int SigGen::instance_count = 0;
 
 class WhiteNoiseGen : public SigGen
 {
