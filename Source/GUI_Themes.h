@@ -12,6 +12,7 @@
 
 #include <JuceHeader.h>
 #include "SigGen.h"
+#include "stdio.h"
 
 class GUI_Themes{
 public:
@@ -197,13 +198,11 @@ public:
          
         for(int noise_gen = 0; noise_gen < N_SIG_GEN_VOICE_GUIS; noise_gen++ ){
             
-            switch( noise_gen ){
-                case 0: SigGenGUI_config.Title = "White Noise"; break;
-                case 1:
-                    SigGenGUI_config.Title = "Sig Gen[0]";
-                    SigGenGUI_config.hasFrequencyControl = true;
-                    break;
-                default: SigGenGUI_config.Title = "Noise N"; break;
+            if( noise_gen == 0 ){
+                SigGenGUI_config.Title = "White Noise";
+            }else{
+                SigGenGUI_config.Title = "Sig Gen " + std::to_string(noise_gen);
+                SigGenGUI_config.hasFrequencyControl = true;
             }
             
             sigGenVoiceGUI[noise_gen].Init( &SigGenGUI_config );
@@ -246,8 +245,9 @@ public:
         printf("Top Level Scene Resized. %d x %d \r\n", getWidth(), getHeight());
         
         //TODO: Loop for N_WhiteNoise. Configure their const Positioning in Themes Class.
-        sigGenVoiceGUI[0].setBounds(10, 10, 150, 250);
-        sigGenVoiceGUI[1].setBounds(150, 10, 150, 250);
+        for( unsigned int sig_gen_gui = 0; sig_gen_gui < N_SIG_GEN_VOICE_GUIS; sig_gen_gui++){
+            sigGenVoiceGUI[sig_gen_gui].setBounds(10 + (sig_gen_gui * 150), 10, 150, 250);
+        }
     }
     
     /*
@@ -265,7 +265,7 @@ public:
 
 private:
     
-    enum { N_SIG_GEN_VOICE_GUIS = 2 };
+    enum { N_SIG_GEN_VOICE_GUIS = 10 };
     SigGenVoiceGUI sigGenVoiceGUI[N_SIG_GEN_VOICE_GUIS];     //TODO: Change to std::vector so the Num Voices can be changed Dynamically
     
     //==============================================================================

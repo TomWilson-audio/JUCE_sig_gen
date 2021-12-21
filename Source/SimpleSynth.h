@@ -82,8 +82,10 @@ public:
          * Attach Audio Objects to GUI Objects
          */
         GUI_TopScene.AttachAudioComponentToGuiComponent(&WhiteNoise_0, 0);
-        GUI_TopScene.AttachPeriodicAudioComponentToGuiComponent(&SineOsc_0, 1);
         
+        for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++ ){
+            GUI_TopScene.AttachPeriodicAudioComponentToGuiComponent(&SineOscs[sine_osc_n], sine_osc_n + 1);
+        }
     }
 
     ~MainContentComponent() override
@@ -101,10 +103,12 @@ public:
         WhiteNoise_0.SetAmplitude(0.1);             //Init Level.
         setSize (1024, 512);
         
-        SineOsc_0.Mute(true);
-        SineOsc_0.SetSampleRate( sampleRate );
-        SineOsc_0.SetFrequency(220.0);
-        SineOsc_0.SetAmplitude(0.1);
+        for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++){
+            SineOscs[sine_osc_n].Mute(true);
+            SineOscs[sine_osc_n].SetSampleRate( sampleRate );
+            SineOscs[sine_osc_n].SetFrequency(220.0);
+            SineOscs[sine_osc_n].SetAmplitude(0.1);
+        }
         
         resetParameters();
     }
@@ -116,7 +120,10 @@ public:
         for (auto sample = 0; sample < numSamplesRemaining; ++sample)
         {
             //TODO: Sum and Mix all Generated Signals
-            float output = WhiteNoise_0.getSample() + SineOsc_0.getSample();
+            float output = WhiteNoise_0.getSample();
+            for( unsigned int osc_n = 0; osc_n < N_SINE_WAVE_OSCS; osc_n++){
+                output+= SineOscs[osc_n].getSample();
+            }
             
             for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
                 bufferToFill.buffer->setSample (channel, sample, output);
@@ -139,8 +146,9 @@ public:
 private:
     SceneComponent GUI_TopScene;            //Absolute Top Level Scene for the Main Content Component
     
+    static const unsigned int N_SINE_WAVE_OSCS = 9;
     WhiteNoiseGen WhiteNoise_0;
-    SineWaveOscillator SineOsc_0;
+    SineWaveOscillator SineOscs[N_SINE_WAVE_OSCS];
     
     static const unsigned int N_SIG_GENS = 2; //TODO: There should be a Config Class that contains N_SIG Gens etc... so it can be reference by GUI and Audio System
   
