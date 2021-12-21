@@ -48,11 +48,10 @@ public:
         juce::Slider::SliderStyle level_slider_style = juce::Slider::SliderStyle::LinearVertical;   //default Vertical
         float slider_level = 0.0;
         std::string Title = "Sig Gen";
+        bool hasFrequencyControl = false;
     }config_t;
     
     SigGenVoiceGUI(){
-//        instance_n = instance_count;
-//        instance_count++;
     }
     
     void Init( config_t* _config )
@@ -62,7 +61,7 @@ public:
         levelSlider.setSliderStyle(config.level_slider_style);
         levelSlider.setRange (config.level_slider_range.min, config.level_slider_range.max);
         levelSlider.setValue (config.slider_level, juce::dontSendNotification);
-        levelSlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 90, 20);
+        levelSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 90, 20);
         levelSlider.onValueChange = [this]()
         {
             if(AudioComponent)
@@ -71,7 +70,7 @@ public:
                 printf("WARNING: Audio Component Not Attached to GUI\r\n");
         };
             
-        levelLabel.setText (config.Title, juce::dontSendNotification);
+        titleLabel.setText (config.Title, juce::dontSendNotification);
         
         //Add "Noise Active" Button:
         noiseActiveButton.onClick = [this]() {      //attach click callback
@@ -84,12 +83,35 @@ public:
 //        noiseActiveButton.setRepaintsOnMouseActivity(true);
         
         addAndMakeVisible(levelSlider);
-        addAndMakeVisible(levelLabel);
+        addAndMakeVisible(titleLabel);
         addAndMakeVisible(noiseActiveButton);
+        
+        if( config.hasFrequencyControl )
+        {
+            frequencySlider.setSliderStyle(config.level_slider_style);
+            frequencySlider.setRange (20, 20000);
+            frequencySlider.setValue (440, juce::dontSendNotification);
+            frequencySlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 90, 20);
+            frequencySlider.onValueChange = [this]()
+            {
+                if(AudioComponent_periodic)
+                    AudioComponent_periodic->SetFrequency((float)frequencySlider.getValue());
+                else
+                    printf("WARNING: Periodic Audio Component Not Attached to GUI\r\n");
+            };
+            addAndMakeVisible(frequencySlider);
+        }
     }
     
     void AttachAudioComponent( SigGen* component ){
         AudioComponent = component;
+        printf("Audio Component Attached to GUI\r\n");
+    }
+    
+    void AttachAudioComponent_Periodic( PeriodicOscillator* component){
+        AudioComponent = component;             //Add Base Class Pointer for Amplitude Control
+        AudioComponent_periodic = component;    //Add Derived Class Pointer for Peridic Controls.
+        printf("Periodic Audio Component Attached to GUI\r\n");
     }
     
     ~SigGenVoiceGUI(){}     //TODO: Delete Graphical Components in Constructor.
@@ -101,31 +123,29 @@ public:
     void resized() override {
         const unsigned int noise_active_button_pos_y = getHeight() - 60;
         
-        levelLabel.setBounds (10, 10, 90, 20);
-        levelLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, 20);
+        titleLabel.setBounds (10, 10, 90, 20);
+        titleLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, 20);
         
         levelSlider.setBounds (10, 40, 100, noise_active_button_pos_y - GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT - GUI_Themes::THEME_STANDARD_Y_SPACING - 15);
         
+        if( config.hasFrequencyControl ){
+            frequencySlider.setBounds( 50, 20, 100, noise_active_button_pos_y - GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT - GUI_Themes::THEME_STANDARD_Y_SPACING - 15 );
+        }
+        
         noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, noise_active_button_pos_y, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
         noiseActiveButton.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, noise_active_button_pos_y);
-    }
-    
-    juce::TextButton* getMuteButtonInstance(void){
-        return &noiseActiveButton;
-    }
-    
-    juce::Slider* getLevelSliderInstance(void){
-        return &levelSlider;
     }
 
 private:
     config_t config;
     
     juce::Slider levelSlider;
-    juce::Label levelLabel;
+    juce::Slider frequencySlider;
+    juce::Label titleLabel;
     juce::TextButton noiseActiveButton;
     
     SigGen* AudioComponent = NULL;
+    PeriodicOscillator* AudioComponent_periodic = NULL;
     
     static const unsigned int LEVEL_SLIDER_CENTER_LINE = 60;
     static const unsigned int X_SPACING = 10;        //e.g. space between buttons in a row.
@@ -172,18 +192,21 @@ public:
         /*
          * Configure and Initialise SigGen GUI components
          */
-        SigGenVoiceGUI::config_t whiteNoiseGUI_config;
-        whiteNoiseGUI_config.slider_level = 0.1;
+        SigGenVoiceGUI::config_t SigGenGUI_config;
+        SigGenGUI_config.slider_level = 0.1;
          
         for(int noise_gen = 0; noise_gen < N_SIG_GEN_VOICE_GUIS; noise_gen++ ){
             
             switch( noise_gen ){
-                case 0: whiteNoiseGUI_config.Title = "White Noise"; break;
-                case 1: whiteNoiseGUI_config.Title = "Sig Gen[0]"; break;
-                default: whiteNoiseGUI_config.Title = "Noise N"; break;
+                case 0: SigGenGUI_config.Title = "White Noise"; break;
+                case 1:
+                    SigGenGUI_config.Title = "Sig Gen[0]";
+                    SigGenGUI_config.hasFrequencyControl = true;
+                    break;
+                default: SigGenGUI_config.Title = "Noise N"; break;
             }
             
-            sigGenVoiceGUI[noise_gen].Init( &whiteNoiseGUI_config );
+            sigGenVoiceGUI[noise_gen].Init( &SigGenGUI_config );
             addAndMakeVisible (sigGenVoiceGUI[noise_gen] );
         }
     }
@@ -223,16 +246,21 @@ public:
         printf("Top Level Scene Resized. %d x %d \r\n", getWidth(), getHeight());
         
         //TODO: Loop for N_WhiteNoise. Configure their const Positioning in Themes Class.
-        sigGenVoiceGUI[0].setBounds(10, 10, 100, 250);
-        sigGenVoiceGUI[1].setBounds(100, 10, 100, 250);
+        sigGenVoiceGUI[0].setBounds(10, 10, 150, 250);
+        sigGenVoiceGUI[1].setBounds(150, 10, 150, 250);
     }
     
     /*
      *  Attach Audio Component to GUI Component
      */
-    void AttachAudioComponentToGuiComponenet( SigGen* AudioComponent, const unsigned int Gui_index ){
+    void AttachAudioComponentToGuiComponent( SigGen* AudioComponent, const unsigned int Gui_index ){
 //        if( Gui_index >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
         sigGenVoiceGUI[Gui_index].AttachAudioComponent( AudioComponent );
+    }
+    
+    void AttachPeriodicAudioComponentToGuiComponent( PeriodicOscillator* AudioComponent, const unsigned int Gui_index ){
+//        if( Gui_index >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
+        sigGenVoiceGUI[Gui_index].AttachAudioComponent_Periodic( AudioComponent );
     }
 
 private:

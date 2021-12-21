@@ -81,8 +81,8 @@ public:
         /*
          * Attach Audio Objects to GUI Objects
          */
-        GUI_TopScene.AttachAudioComponentToGuiComponenet(&WhiteNoise_0, 0);
-        GUI_TopScene.AttachAudioComponentToGuiComponenet(&SineOsc_0, 1);
+        GUI_TopScene.AttachAudioComponentToGuiComponent(&WhiteNoise_0, 0);
+        GUI_TopScene.AttachPeriodicAudioComponentToGuiComponent(&SineOsc_0, 1);
         
     }
 
