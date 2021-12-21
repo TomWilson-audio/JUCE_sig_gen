@@ -44,6 +44,11 @@
 
 *******************************************************************************/
 
+/*
+ *  TODO:
+ *      - The Whole Button/Slider Listener design isn't very scalable. It would be a lot cleaner if the Audio Sign Gen Objects were attached to GUI objects.
+ */
+
 
 #pragma once
 
@@ -51,19 +56,14 @@
 #include "SigGen.h"
 
 //==============================================================================
-class MainContentComponent   :  public juce::AudioAppComponent,
-                                public juce::Button::Listener,
-                                public juce::Slider::Listener
+class MainContentComponent   :  public juce::AudioAppComponent
+//                                public juce::Button::Listener,
+//                                public juce::Slider::Listener
 {
 public:
     MainContentComponent()
     {
-        addAndMakeVisible (&topScene);     //Add Top Level, Parent Scene for the GUI
-        
-        /*
-         *  Add GUI Listeners (Allowing Audio Processing to Action on any GUI changes)
-         */
-        topScene.AddListenerToAll_GUIActions(this, this);
+        addAndMakeVisible (&GUI_TopScene);     //Add Top Level, Parent Scene for the GUI
 
         // Some platforms require permissions to open input channels so request that here
         if (juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
@@ -77,6 +77,13 @@ public:
             // Specify the number of input and output channels that we want to open
             setAudioChannels (0, 2);
         }
+        
+        /*
+         * Attach Audio Objects to GUI Objects
+         */
+        GUI_TopScene.AttachAudioComponentToGuiComponenet(&WhiteNoise_0, 0);
+        GUI_TopScene.AttachAudioComponentToGuiComponenet(&SineOsc_0, 1);
+        
     }
 
     ~MainContentComponent() override
@@ -122,37 +129,7 @@ public:
     void resized() override     //Called whenever the GUI Window is resized (including Initialization)
     {
         //Redraw GUI Window over MainComponent Window
-        topScene.setBounds(0, 0, getWidth(), getHeight());
-    }
-    
-    //Handles all Button Clicks from the GUI, so they can be applied to audio Processing
-    void buttonClicked (juce::Button* button) override
-    {
-        for( unsigned int signal = 0; signal < N_SIG_GENS; signal++ )       //Iterate Through All Signals
-        {
-            //Test For MUTE Buttons (TODO: we might be able to skip this looped conditional by looking at the argument button type or name )
-            if(button == topScene.GetSigGenGUI_Instance(signal)->getMuteButtonInstance())
-            {
-                if(topScene.GetSigGenGUI_Instance(signal)->getMuteButtonInstance()->getToggleStateValue() == true)
-                    SigGen::GetInstance(signal)->Mute(false);
-                else
-                    SigGen::GetInstance(signal)->Mute(true);
-            }
-            //Add Tests for Other Button Types. E.g. Waveform Select
-        }
-    }
-    
-    //Subscribed to All Slider Value Changes from the GUI, so they can be applied to audio Processing
-    void sliderValueChanged (juce::Slider* slider) override
-    {
-        for( unsigned int signal = 0; signal < N_SIG_GENS; signal++ )       //Iterate Through All Signals
-        {
-            if(slider == topScene.GetSigGenGUI_Instance(signal)->getLevelSliderInstance()){
-//                printf("Slider [%d] Val = %f\r\n", signal, slider->getValue());
-                SigGen::GetInstance(signal)->SetAmplitude(slider->getValue());
-            }
-            //TODO: Check Frequency Slider Value... You will also need to test whether Signal Type has a Frequency Control (e.g. NOISE Gen)
-        }
+        GUI_TopScene.setBounds(0, 0, getWidth(), getHeight());
     }
 
     void resetParameters()
@@ -160,7 +137,7 @@ public:
     }
     
 private:
-    SceneComponent topScene;            //Absolute Top Level Scene for the Main Content Component
+    SceneComponent GUI_TopScene;            //Absolute Top Level Scene for the Main Content Component
     
     WhiteNoiseGen WhiteNoise_0;
     SineWaveOscillator SineOsc_0;

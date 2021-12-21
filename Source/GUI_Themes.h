@@ -63,11 +63,21 @@ public:
         levelSlider.setRange (config.level_slider_range.min, config.level_slider_range.max);
         levelSlider.setValue (config.slider_level, juce::dontSendNotification);
         levelSlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 90, 20);
+        levelSlider.onValueChange = [this]()
+        {
+            if(AudioComponent)
+                AudioComponent->SetAmplitude((float)levelSlider.getValue());
+            else
+                printf("WARNING: Audio Component Not Attached to GUI\r\n");
+        };
             
         levelLabel.setText (config.Title, juce::dontSendNotification);
         
         //Add "Noise Active" Button:
-        noiseActiveButton.onClick = [this]() { noiseActiveButtonClicked(); };   //attach click callback
+        noiseActiveButton.onClick = [this]() {      //attach click callback
+            noiseActiveButtonClicked();
+        };
+        
         noiseActiveButton.setClickingTogglesState(true);                        //Enable Button Toggling
         noiseActiveButton.setToggleState(false, juce::dontSendNotification);    //Set initial Toggle State
         noiseActiveButtonClicked();                                             //Call the buttonClick() Function to initialise all states.
@@ -76,6 +86,10 @@ public:
         addAndMakeVisible(levelSlider);
         addAndMakeVisible(levelLabel);
         addAndMakeVisible(noiseActiveButton);
+    }
+    
+    void AttachAudioComponent( SigGen* component ){
+        AudioComponent = component;
     }
     
     ~SigGenVoiceGUI(){}     //TODO: Delete Graphical Components in Constructor.
@@ -111,6 +125,8 @@ private:
     juce::Label levelLabel;
     juce::TextButton noiseActiveButton;
     
+    SigGen* AudioComponent = NULL;
+    
     static const unsigned int LEVEL_SLIDER_CENTER_LINE = 60;
     static const unsigned int X_SPACING = 10;        //e.g. space between buttons in a row.
     static const unsigned int Y_SPACING = 10;        //e.g. space between buttons in a column.
@@ -127,10 +143,16 @@ private:
         if( noiseActiveButton.getToggleStateValue() == true ){
             noiseActiveButton.setButtonText("Active");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonOnColourId, juce::Colours::limegreen);
+            if(AudioComponent)
+                AudioComponent->Mute(false);
         }else{
             noiseActiveButton.setButtonText("Muted");
             noiseActiveButton.setColour(juce::TextButton::ColourIds::buttonColourId, juce::Colours::red);
+            if(AudioComponent)
+                AudioComponent->Mute(true);
         }
+        if(AudioComponent == NULL)
+            printf("WARNING: Audio Component Not Attached to GUI\r\n");
     }
     
     
@@ -163,20 +185,6 @@ public:
             
             sigGenVoiceGUI[noise_gen].Init( &whiteNoiseGUI_config );
             addAndMakeVisible (sigGenVoiceGUI[noise_gen] );
-        }
-    }
-    
-    /*
-     *  Allows Audio Processing Modules to Listen to GUI Actions.
-     */
-    void AddListenerToAll_GUIActions( juce::Button::Listener* ButtonListener, juce::Slider::Listener* SliderListener ){
-        //Noise Gens
-        for(int noise_gen = 0; noise_gen < N_SIG_GEN_VOICE_GUIS; noise_gen++ ){
-            //Buttons
-            sigGenVoiceGUI[noise_gen].getMuteButtonInstance()->addListener(ButtonListener);
-            
-            //Sliders
-            sigGenVoiceGUI[noise_gen].getLevelSliderInstance()->addListener(SliderListener);
         }
     }
 
@@ -220,13 +228,11 @@ public:
     }
     
     /*
-     *  Access to all GUI components.
+     *  Attach Audio Component to GUI Component
      */
-    SigGenVoiceGUI* GetSigGenGUI_Instance(unsigned int instance_n){
-        if( instance_n >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
-            return NULL;
-        
-        return &sigGenVoiceGUI[instance_n];
+    void AttachAudioComponentToGuiComponenet( SigGen* AudioComponent, const unsigned int Gui_index ){
+//        if( Gui_index >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
+        sigGenVoiceGUI[Gui_index].AttachAudioComponent( AudioComponent );
     }
 
 private:
