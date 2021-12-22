@@ -101,7 +101,7 @@ public:
         //TODO: Set (or update) SampleRate For All Oscillators
         WhiteNoise_0.Mute(true);                    //Init Muted.
         WhiteNoise_0.SetAmplitude(0.1);             //Init Level.
-        setSize (1024, 512);
+        setSize (1560, 512);
         
         for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++){
             SineOscs[sine_osc_n].Mute(true);

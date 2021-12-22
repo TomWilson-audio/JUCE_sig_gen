@@ -120,6 +120,7 @@ public:
     {
         cyclesPerSample = f / (float)fS;
         angleDelta = cyclesPerSample * juce::MathConstants<float>::twoPi;
+//        printf("SetFreq: CyclesPerSample = %f, angleDelta = %f\r\n", cyclesPerSample, angleDelta);
     }
     
     void updateAngle()

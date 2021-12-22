@@ -28,7 +28,7 @@ public:
     static const unsigned int THEME_STANDARD_X_SPACING = 10;        //e.g. space between buttons in a row.
     static const unsigned int THEME_STANDARD_Y_SPACING = 10;        //e.g. space between buttons in a column.
     static const unsigned int NOISE_ACTIVE_BUTTON_WIDTH = 60;
-    static const unsigned int NOISE_ACTIVE_BUTTON_HEIGHT = 28;
+    static const unsigned int NOISE_ACTIVE_BUTTON_HEIGHT = 25;
     static const unsigned int NOISE_ACTIVE_BUTTON_POS_X = 10;
     static const unsigned int CLICK_COUNT_LABEL_POS_X = NOISE_ACTIVE_BUTTON_POS_X;
 };
@@ -41,6 +41,9 @@ public:
 class SigGenVoiceGUI : public juce::Component
 {
 public:
+    
+    unsigned int ComponentWidth = 140;      //This value will be modified depending on the GUI configuration.
+    unsigned int ComponentHeight = 300;
     
     typedef struct SliderRange_S{
         float min = 0.0, max = 0.0;
@@ -103,6 +106,8 @@ public:
                     printf("WARNING: Periodic Audio Component Not Attached to GUI\r\n");
             };
             addAndMakeVisible(frequencySlider);
+        }else{  //Noise Generator (No Freq control)
+            ComponentWidth = 100;
         }
     }
     
@@ -121,29 +126,32 @@ public:
 
     void paint (juce::Graphics& g) override {
         //Draw Bounding Box
-        g.setColour (juce::Colours::green);
-        g.drawLine (0, 0, getWidth(), 0, 5);
-        g.drawLine (getWidth(), 0, getWidth(), getHeight(), 5);
-        g.drawLine (getWidth(), getHeight(), 0, getHeight(), 5);
-        g.drawLine (0, getHeight(), 0, 0, 5);
+        g.setColour (juce::Colours::darkturquoise);
+        g.drawRoundedRectangle(0, 0, getWidth(), getHeight(), 10, 2);
     }
     
     void resized() override {
 //        const unsigned int noise_active_button_pos_y = getHeight() - 60;
 
-        const unsigned int CentreLine = getWidth() >> 1;
+        const unsigned int X_CentreLine = getWidth() >> 1;
+        const unsigned int X_ThirdLine = getWidth() * 0.333333;
         
         titleLabel.setBounds (10, 10, 90, 20);
-        titleLabel.setCentrePosition( CentreLine, 20);
-        
-        levelSlider.setBounds (10, 40, 100, 150);
+        titleLabel.setCentrePosition( X_CentreLine, 20);
+        titleLabel.setJustificationType( juce::Justification::centredTop );
         
         if( config.hasFrequencyControl ){
+            levelSlider.setBounds (10, 40, 100, 150);
+            levelSlider.setCentrePosition( X_ThirdLine, 120);
             frequencySlider.setBounds( 50, 20, 100, 150);
+            frequencySlider.setCentrePosition( X_ThirdLine << 1, 100);
+        }else{
+            levelSlider.setBounds (10, 40, 100, 150);
+            levelSlider.setCentrePosition( X_CentreLine, 120);
         }
         
-        noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, 300, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
-        noiseActiveButton.setCentrePosition( CentreLine, 220);
+        noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, 0, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
+        noiseActiveButton.setCentrePosition( X_CentreLine, 280);
     }
     
     /*
@@ -171,7 +179,7 @@ private:
     static const unsigned int X_SPACING = 10;        //e.g. space between buttons in a row.
     static const unsigned int Y_SPACING = 10;        //e.g. space between buttons in a column.
     static const unsigned int NOISE_ACTIVE_BUTTON_WIDTH = 60;
-    static const unsigned int NOISE_ACTIVE_BUTTON_HEIGHT = 28;
+    static const unsigned int NOISE_ACTIVE_BUTTON_HEIGHT = 20;
     static const unsigned int NOISE_ACTIVE_BUTTON_POS_X = 10;
     static const unsigned int CLICK_COUNT_LABEL_POS_X = NOISE_ACTIVE_BUTTON_POS_X;
     
@@ -263,9 +271,16 @@ public:
     {
         printf("Top Level Scene Resized. %d x %d \r\n", getWidth(), getHeight());
         
+        static const unsigned int X_OFFSET = 10;
+        unsigned int x_pos = X_OFFSET;
+        
         //TODO: Loop for N_WhiteNoise. Configure their const Positioning in Themes Class.
-        for( unsigned int sig_gen_gui = 0; sig_gen_gui < N_SIG_GEN_VOICE_GUIS; sig_gen_gui++){
-            sigGenVoiceGUI[sig_gen_gui].setBounds(10 + (sig_gen_gui * 150), 10, 150, 300);
+        for( unsigned int sig_gen_gui = 0; sig_gen_gui < N_SIG_GEN_VOICE_GUIS; sig_gen_gui++)
+        {
+            sigGenVoiceGUI[sig_gen_gui].setBounds(x_pos, 25,
+                                                  sigGenVoiceGUI[sig_gen_gui].ComponentWidth,
+                                                  sigGenVoiceGUI[sig_gen_gui].ComponentHeight);
+            x_pos += sigGenVoiceGUI[sig_gen_gui].ComponentWidth + 4 + X_OFFSET;
         }
     }
     

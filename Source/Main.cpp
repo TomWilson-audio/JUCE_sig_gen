@@ -10,7 +10,7 @@
 #include "SimpleSynth.h"
 
 #define APPLICATION_NAME        "Signal Generator"
-#define WINDOW_RESIZE_MIN_X     512
+#define WINDOW_RESIZE_MIN_X     1560
 #define WINDOW_RESIZE_MIN_Y     256
 
 class Application    : public juce::JUCEApplication
