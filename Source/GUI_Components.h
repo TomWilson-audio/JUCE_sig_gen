@@ -14,6 +14,8 @@
 #include "SigGen.h"
 #include "stdio.h"
 
+#define DEBUG_REPORT_MOUSE_POSITION
+
 class GUI_Themes{
 public:
     
@@ -118,24 +120,41 @@ public:
     ~SigGenVoiceGUI(){}     //TODO: Delete Graphical Components in Constructor.
 
     void paint (juce::Graphics& g) override {
-
+        //Draw Bounding Box
+        g.setColour (juce::Colours::green);
+        g.drawLine (0, 0, getWidth(), 0, 5);
+        g.drawLine (getWidth(), 0, getWidth(), getHeight(), 5);
+        g.drawLine (getWidth(), getHeight(), 0, getHeight(), 5);
+        g.drawLine (0, getHeight(), 0, 0, 5);
     }
     
     void resized() override {
-        const unsigned int noise_active_button_pos_y = getHeight() - 60;
+//        const unsigned int noise_active_button_pos_y = getHeight() - 60;
+
+        const unsigned int CentreLine = getWidth() >> 1;
         
         titleLabel.setBounds (10, 10, 90, 20);
-        titleLabel.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, 20);
+        titleLabel.setCentrePosition( CentreLine, 20);
         
-        levelSlider.setBounds (10, 40, 100, noise_active_button_pos_y - GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT - GUI_Themes::THEME_STANDARD_Y_SPACING - 15);
+        levelSlider.setBounds (10, 40, 100, 150);
         
         if( config.hasFrequencyControl ){
-            frequencySlider.setBounds( 50, 20, 100, noise_active_button_pos_y - GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT - GUI_Themes::THEME_STANDARD_Y_SPACING - 15 );
+            frequencySlider.setBounds( 50, 20, 100, 150);
         }
         
-        noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, noise_active_button_pos_y, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
-        noiseActiveButton.setCentrePosition( GUI_Themes::THEME_CENTER_LINE, noise_active_button_pos_y);
+        noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, 300, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
+        noiseActiveButton.setCentrePosition( CentreLine, 220);
     }
+    
+    /*
+     *  Mouse Move Used to return Co-ords to ease GUI layout.
+     */
+#ifdef DEBUG_REPORT_MOUSE_POSITION
+    void mouseMove(const juce::MouseEvent& event) override
+    {
+        printf("SigGen Mouse Coord (%f, %f)\r\n", event.position.getX(), event.position.getY());
+    }
+#endif
 
 private:
     config_t config;
@@ -185,7 +204,7 @@ private:
 
 
 //==============================================================================
-class SceneComponent    : public juce::Component
+class SceneComponent    :   public juce::Component
 {
 public:
     SceneComponent()
@@ -215,7 +234,7 @@ public:
         g.fillAll (juce::Colours::darkgrey);
         
         g.setColour (juce::Colours::lightgrey);
-        g.setFont (juce::Font ("Times New Roman", 20.0f, juce::Font::italic));
+        g.setFont (juce::Font ("Times New Roman", 20.0f, juce::Font::bold));
         g.drawText ("Signal Sources", getLocalBounds(), juce::Justification::centredTop, true);
         
         //Basic Graphics Tutorial Gubbins (for Reference):
@@ -246,7 +265,7 @@ public:
         
         //TODO: Loop for N_WhiteNoise. Configure their const Positioning in Themes Class.
         for( unsigned int sig_gen_gui = 0; sig_gen_gui < N_SIG_GEN_VOICE_GUIS; sig_gen_gui++){
-            sigGenVoiceGUI[sig_gen_gui].setBounds(10 + (sig_gen_gui * 150), 10, 150, 250);
+            sigGenVoiceGUI[sig_gen_gui].setBounds(10 + (sig_gen_gui * 150), 10, 150, 300);
         }
     }
     
@@ -262,6 +281,16 @@ public:
 //        if( Gui_index >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
         sigGenVoiceGUI[Gui_index].AttachAudioComponent_Periodic( AudioComponent );
     }
+    
+    /*
+     *  Mouse Move Used to return Co-ords to ease GUI layout.
+     */
+#ifdef DEBUG_REPORT_MOUSE_POSITION
+    void mouseMove(const juce::MouseEvent& event) override
+    {
+        printf("Scene Mouse Coord (%f, %f)\r\n", event.position.getX(), event.position.getY());
+    }
+#endif
 
 private:
     

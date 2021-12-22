@@ -52,7 +52,7 @@
 
 #pragma once
 
-#include "GUI_Themes.h"
+#include "GUI_Components.h"
 #include "SigGen.h"
 
 //==============================================================================
