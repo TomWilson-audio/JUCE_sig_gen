@@ -103,10 +103,11 @@ public:
         WhiteNoise_0.SetAmplitude(0.1);             //Init Level.
         setSize (1560, 512);
         
+        static const float Base_Hz = 440.0;
         for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++){
             SineOscs[sine_osc_n].Mute(true);
             SineOscs[sine_osc_n].SetSampleRate( sampleRate );
-            SineOscs[sine_osc_n].SetFrequency(220.0);
+            SineOscs[sine_osc_n].SetFrequency(Base_Hz);
             SineOscs[sine_osc_n].SetAmplitude(0.1);
         }
         

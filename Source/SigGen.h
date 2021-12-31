@@ -11,8 +11,6 @@
 
 #pragma once
 
-#include <JuceHeader.h>
-
 class SigGen{
 public:
     
@@ -62,6 +60,9 @@ public:
     }
     
 protected:
+    static constexpr float PI = 3.141592653589793238L;
+    static constexpr float TWO_PI = PI * 2;
+    
     float targetAmplitude = 0.0f;
     float amplitude = 0.0f;
     float unmutedAmplitude = 0.0f;
@@ -78,6 +79,7 @@ protected:
     }
     
 private:
+    
     constexpr inline void SetTargetAmplitude( const float value ){
         targetAmplitude = value;
         amplitudeFadeStep = (targetAmplitude - amplitude) / (float) AMPLITUDE_RAMP_LENGTH_SAMPLES;
@@ -88,6 +90,7 @@ private:
     static SigGen* SigGenList[MAX_N_SIGNALS];
     static unsigned int instance_count;
 };
+//Define Static Members
 SigGen* SigGen::SigGenList[SigGen::MAX_N_SIGNALS] = {NULL};
 unsigned int SigGen::instance_count = 0;
 
@@ -119,14 +122,14 @@ public:
     void SetFrequency(float f)
     {
         cyclesPerSample = f / (float)fS;
-        angleDelta = cyclesPerSample * juce::MathConstants<float>::twoPi;
+        angleDelta = cyclesPerSample * TWO_PI;
 //        printf("SetFreq: CyclesPerSample = %f, angleDelta = %f\r\n", cyclesPerSample, angleDelta);
     }
     
     void updateAngle()
     {
         currentAngle += angleDelta;
-        if (currentAngle >= juce::MathConstants<float>::twoPi)
+        if (currentAngle >= TWO_PI)
             currentAngle = 0;
     }
     
@@ -165,7 +168,7 @@ public:
     float CalcSample() override
     {
         float sample = amplitude * 0.5;
-        if( currentAngle >= juce::MathConstants<float>::pi )    //TODO: you could add duty cycle control here.
+        if( currentAngle >= PI )    //TODO: you could add duty cycle control here.
             sample *= -1.0;
         updateAngle();
         return sample;

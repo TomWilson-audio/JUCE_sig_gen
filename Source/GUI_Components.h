@@ -7,6 +7,11 @@
 //  Refs:
 //  - https://docs.juce.com/master/tutorial_component_parents_children.html
 //
+//  TODO:
+//  - Create an X-Y 2D control for SigGen Pitch(X) and Amplitude(Y). This will be a more intuitive control and should make the GUI more like a creative instrument than a SigGen Utility.
+//  Some relevant notes on thiws forum post: https://forum.juce.com/t/help-a-newbie-2d-slider-x-y-controller/20832
+//
+//
 
 #pragma once
 
@@ -64,6 +69,7 @@ public:
     {
         config = *_config;       //Copy Config Variables
         
+        //Level Slider
         levelSlider.setSliderStyle(config.level_slider_style);
         levelSlider.setRange (config.level_slider_range.min, config.level_slider_range.max);
         levelSlider.setValue (config.slider_level, juce::dontSendNotification);
@@ -75,8 +81,11 @@ public:
             else
                 printf("WARNING: Audio Component Not Attached to GUI\r\n");
         };
+        addAndMakeVisible(levelSlider);
             
+        //Title and Other Text Labels
         titleLabel.setText (config.Title, juce::dontSendNotification);
+        addAndMakeVisible(titleLabel);
         
         //Add "Noise Active" Button:
         noiseActiveButton.onClick = [this]() {      //attach click callback
@@ -87,13 +96,12 @@ public:
         noiseActiveButton.setToggleState(false, juce::dontSendNotification);    //Set initial Toggle State
         noiseActiveButtonClicked();                                             //Call the buttonClick() Function to initialise all states.
 //        noiseActiveButton.setRepaintsOnMouseActivity(true);
-        
-        addAndMakeVisible(levelSlider);
-        addAndMakeVisible(titleLabel);
         addAndMakeVisible(noiseActiveButton);
         
+        //Frequency Slider and other Freq Control Elements
         if( config.hasFrequencyControl )
         {
+            //Frequency Slider
             frequencySlider.setSliderStyle(config.level_slider_style);
             frequencySlider.setRange (20, 20000);
             frequencySlider.setValue (440, juce::dontSendNotification);
@@ -106,6 +114,16 @@ public:
                     printf("WARNING: Periodic Audio Component Not Attached to GUI\r\n");
             };
             addAndMakeVisible(frequencySlider);
+            
+            //Relative Frequency Button
+            syncButton.setClickingTogglesState (true);
+            syncButton.setButtonText("Sync");
+//            relativeFreqButton.setState(juce::Button::buttonDown);  //Why DOESN'T THIS WORK? Had to use triggerClick() instead.
+            syncButton.triggerClick();
+//            relativeFreqButton.changeWidthToFitText();
+            syncButton.onClick = [this] { syncButtonClicked(); };
+            addAndMakeVisible(syncButton);
+            
         }else{  //Noise Generator (No Freq control)
             ComponentWidth = 100;
         }
@@ -120,6 +138,13 @@ public:
         AudioComponent = component;             //Add Base Class Pointer for Amplitude Control
         AudioComponent_periodic = component;    //Add Derived Class Pointer for Peridic Controls.
         printf("Periodic Audio Component Attached to GUI\r\n");
+    }
+    
+    //Set The Sync State of the GUI. i.e. Is this SigGen Synced to the f0 of it's voice group.
+    void SetSyncState( bool state ){
+        isSynced = state;
+        syncButton.setClickingTogglesState (state);
+        syncButtonClicked();
     }
     
     ~SigGenVoiceGUI(){}     //TODO: Delete Graphical Components in Constructor.
@@ -145,6 +170,10 @@ public:
             levelSlider.setCentrePosition( X_ThirdLine, 120);
             frequencySlider.setBounds( 50, 20, 100, 150);
             frequencySlider.setCentrePosition( X_ThirdLine << 1, 100);
+            
+            syncButton.setBounds( 0, 240, 30, 30);
+            syncButton.changeWidthToFitText();
+            
         }else{
             levelSlider.setBounds (10, 40, 100, 150);
             levelSlider.setCentrePosition( X_CentreLine, 120);
@@ -152,6 +181,7 @@ public:
         
         noiseActiveButton.setBounds ( GUI_Themes::THEME_STANDARD_X_SPACING, 0, GUI_Themes::NOISE_ACTIVE_BUTTON_WIDTH, GUI_Themes::NOISE_ACTIVE_BUTTON_HEIGHT);
         noiseActiveButton.setCentrePosition( X_CentreLine, 280);
+        
     }
     
     /*
@@ -171,6 +201,7 @@ private:
     juce::Slider frequencySlider;
     juce::Label titleLabel;
     juce::TextButton noiseActiveButton;
+    juce::ToggleButton syncButton;
     
     SigGen* AudioComponent = NULL;
     PeriodicOscillator* AudioComponent_periodic = NULL;
@@ -201,6 +232,17 @@ private:
         }
         if(AudioComponent == NULL)
             printf("WARNING: Audio Component Not Attached to GUI\r\n");
+    }
+    
+    //Sync Active Button Handling (Frequency and Amplitude Sync)
+    bool isSynced = true;
+    void syncButtonClicked( void )
+    {
+        if( syncButton.getToggleStateValue() == true )
+            isSynced = true;
+        else
+            isSynced = false;
+            
     }
     
     
@@ -241,6 +283,11 @@ public:
     {
         g.fillAll (juce::Colours::darkgrey);
         
+        //Draw Bounding Box
+        g.setColour (juce::Colours::darkturquoise);
+        g.drawRoundedRectangle(0, 0, getWidth(), getHeight(), 10, 5);
+        
+        //Annotations
         g.setColour (juce::Colours::lightgrey);
         g.setFont (juce::Font ("Times New Roman", 20.0f, juce::Font::bold));
         g.drawText ("Signal Sources", getLocalBounds(), juce::Justification::centredTop, true);
