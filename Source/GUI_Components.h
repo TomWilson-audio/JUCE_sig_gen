@@ -9,7 +9,7 @@
 //
 //  TODO:
 //  - Create an X-Y 2D control for SigGen Pitch(X) and Amplitude(Y). This will be a more intuitive control and should make the GUI more like a creative instrument than a SigGen Utility.
-//  Some relevant notes on thiws forum post: https://forum.juce.com/t/help-a-newbie-2d-slider-x-y-controller/20832
+//  Some relevant notes on this forum post: https://forum.juce.com/t/help-a-newbie-2d-slider-x-y-controller/20832
 //
 //
 
@@ -125,14 +125,12 @@ public:
         syncSettings.isSyncTalker = true;
         SetSyncState(false);
         
-        //TODO: For some reason, this loop is iterating off the end of the list.... why?
         //Test for All SigGenGuiInstances, ensuring all other members of this sync group are not set to talker.
         printf("%s - SET AS SYNC TALKER for Sync Group %d\r\n", config.Title.c_str(), syncSettings.syncGroup );
-        const unsigned int n_sigGenObjects = GetObjectInstanceCount();
-        for( unsigned int i = 0; i < n_sigGenObjects; i++ ){
+        for( unsigned int i = 0; i < GetObjectInstanceCount(); i++ ){
             if(( GetObjectFromList(i)->syncSettings.syncGroup == syncSettings.syncGroup ) &&   //matching syncGroup
                ( GetObjectFromList(i)->syncSettings.isSyncTalker == true) &&                   //isCurrently Talker
-               ( GetObjectFromList(i) != this )                                                //is NOT this
+               ( GetObjectFromList(i) != this )                                                //is NOT this instance
             ){
                 GetObjectFromList(i)->syncSettings.isSyncTalker = false;
                 //Redraw gui as a sync Listener
