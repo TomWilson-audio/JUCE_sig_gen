@@ -17,7 +17,7 @@
 
 #include <JuceHeader.h>
 #include "SigGen.h"
-#include "ObjectCounter.h"
+#include "ObjectList.h"
 #include "stdio.h"
 
 //#define DEBUG_REPORT_MOUSE_POSITION
@@ -45,7 +45,7 @@ public:
 
 //==============================================================================
 class SigGenVoiceGUI :  public juce::Component,
-                        public ObjectCount<SigGenVoiceGUI>
+                        public ObjectList<SigGenVoiceGUI>
 {
 public:
     
@@ -71,14 +71,13 @@ public:
     }config_t;
     
     SigGenVoiceGUI(){
-        SigGenVoiceGuiList.push_back(this);     //Add this object to the GUI List.
-        
+        AddObjectToList(this);
         if( GetObjectInstanceCount() == 1 ){    //First Sig gen GUI Object
             for( unsigned int type = 0; type < N_SIG_GEN_GUI_TYPES; type++ ){
                 objectInstanceCounts.count_per_type[type] = 0;      //Zero All Counters for Each Type (They are incremented during config)
             }
         }
-//      printf("SigGenGuiConstructor. Instance Num = %d\r\n", GetObjectInstanceCount());      //Object Instance Count TEST
+        printf("SigGenGuiConstructor. Instance Num = %d\r\n", GetObjectInstanceCount());      //Object Instance Count TEST
     }
     ~SigGenVoiceGUI(){}
     
@@ -126,17 +125,20 @@ public:
         syncSettings.isSyncTalker = true;
         SetSyncState(false);
         
+        //TODO: For some reason, this loop is iterating off the end of the list.... why?
         //Test for All SigGenGuiInstances, ensuring all other members of this sync group are not set to talker.
-//        for( unsigned int i = 0; i < GetObjectInstanceCount(); i++ ){
-//            if(( SigGenVoiceGuiList[i]->syncSettings.syncGroup == syncSettings.syncGroup ) &&   //matching syncGroup
-//               ( SigGenVoiceGuiList[i]->config.gui_type == config.gui_type ) &&                 //matching type
-//               ( SigGenVoiceGuiList[i]->syncSettings.isSyncTalker == true)
-//            ){
-//                SigGenVoiceGuiList[i]->syncSettings.isSyncTalker = false;
-//                //Redraw gui as a sync Listener
-//                SigGenVoiceGuiList[i]->SetSyncState(true);      //TODO: refactor with "sync listener" terminology;
-//            }
-//        }
+        printf("%s - SET AS SYNC TALKER for Sync Group %d\r\n", config.Title.c_str(), syncSettings.syncGroup );
+        const unsigned int n_sigGenObjects = GetObjectInstanceCount();
+        for( unsigned int i = 0; i < n_sigGenObjects; i++ ){
+            if(( GetObjectFromList(i)->syncSettings.syncGroup == syncSettings.syncGroup ) &&   //matching syncGroup
+               ( GetObjectFromList(i)->syncSettings.isSyncTalker == true) &&                   //isCurrently Talker
+               ( GetObjectFromList(i) != this )                                                //is NOT this
+            ){
+                GetObjectFromList(i)->syncSettings.isSyncTalker = false;
+                //Redraw gui as a sync Listener
+                GetObjectFromList(i)->SetSyncState(true);      //TODO: refactor with "sync listener" terminology;
+            }
+        }
     }
         
     void SetSyncState( bool state ){
@@ -196,8 +198,6 @@ public:
 private:
     
     config_t config;
-    
-    std::vector<SigGenVoiceGUI*> SigGenVoiceGuiList;
     
     typedef struct ObjectInstanceCounts_S{
         unsigned int count_per_type[N_SIG_GEN_GUI_TYPES];
@@ -296,7 +296,7 @@ private:
         addAndMakeVisible(frequencySlider);
         
         //Sync Button
-        if( syncSettings.isSyncTalker == false ){
+        if( syncSettings.isSyncTalker == false ){   //(for sync listeners only)
             syncButton.setButtonText("Sync");
             syncButton.setClickingTogglesState (true);
             syncButton.onClick = [this] { syncButtonClicked(); };
