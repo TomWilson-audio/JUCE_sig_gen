@@ -17,9 +17,10 @@
 
 #include <JuceHeader.h>
 #include "SigGen.h"
+#include "ObjectCounter.h"
 #include "stdio.h"
 
-#define DEBUG_REPORT_MOUSE_POSITION
+//#define DEBUG_REPORT_MOUSE_POSITION
 
 class GUI_Themes{
 public:
@@ -43,7 +44,8 @@ public:
  */
 
 //==============================================================================
-class SigGenVoiceGUI : public juce::Component
+class SigGenVoiceGUI :  public juce::Component,
+                        public ObjectCount<SigGenVoiceGUI>
 {
 public:
     
@@ -54,78 +56,55 @@ public:
         float min = 0.0, max = 0.0;
     }level_slider_range_t;
     
+    typedef enum{
+        SIG_GEN_GUI_TYPE_NOISE,
+        SIG_GEN_GUI_TYPE_PERIODIC,
+        N_SIG_GEN_GUI_TYPES,
+    }sig_gen_gui_type_t;
+    
     typedef struct Config_S{
+        sig_gen_gui_type_t gui_type = SIG_GEN_GUI_TYPE_NOISE;           //Noise type by default (no freq control)
         level_slider_range_t level_slider_range = {0.0, 0.25};
         juce::Slider::SliderStyle level_slider_style = juce::Slider::SliderStyle::LinearVertical;   //default Vertical
         float slider_level = 0.0;
         std::string Title = "Sig Gen";
-        bool hasFrequencyControl = false;
     }config_t;
     
     SigGenVoiceGUI(){
+        SigGenVoiceGuiList.push_back(this);     //Add this object to the GUI List.
+        
+        if( GetObjectInstanceCount() == 1 ){    //First Sig gen GUI Object
+            for( unsigned int type = 0; type < N_SIG_GEN_GUI_TYPES; type++ ){
+                objectInstanceCounts.count_per_type[type] = 0;      //Zero All Counters for Each Type (They are incremented during config)
+            }
+        }
+//      printf("SigGenGuiConstructor. Instance Num = %d\r\n", GetObjectInstanceCount());      //Object Instance Count TEST
     }
+    ~SigGenVoiceGUI(){}
     
+    ///TODO: The config_t arg could be simplified just to expose sig_gen_gui_type_t and title. All other stylistic traits should be configured internally.
     void Init( config_t* _config )
     {
         config = *_config;       //Copy Config Variables
         
-        //Level Slider
-        levelSlider.setSliderStyle(config.level_slider_style);
-        levelSlider.setRange (config.level_slider_range.min, config.level_slider_range.max);
-        levelSlider.setValue (config.slider_level, juce::dontSendNotification);
-        levelSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 90, 20);
-        levelSlider.onValueChange = [this]()
-        {
-            if(AudioComponent)
-                AudioComponent->SetAmplitude((float)levelSlider.getValue());
-            else
-                printf("WARNING: Audio Component Not Attached to GUI\r\n");
-        };
-        addAndMakeVisible(levelSlider);
-            
-        //Title and Other Text Labels
-        titleLabel.setText (config.Title, juce::dontSendNotification);
-        addAndMakeVisible(titleLabel);
+        objectInstanceCounts.count_per_type[config.gui_type]++;     //Increment the GUI Type Counts.
         
-        //Add "Noise Active" Button:
-        noiseActiveButton.onClick = [this]() {      //attach click callback
-            noiseActiveButtonClicked();
-        };
+        //Add Common Components
+        AddLevelControl();       //TODO: It would be a lot cleaner if these took Args, rather than using the global config data;
+        AddLabels();
+        AddMuteButton();
         
-        noiseActiveButton.setClickingTogglesState(true);                        //Enable Button Toggling
-        noiseActiveButton.setToggleState(false, juce::dontSendNotification);    //Set initial Toggle State
-        noiseActiveButtonClicked();                                             //Call the buttonClick() Function to initialise all states.
-//        noiseActiveButton.setRepaintsOnMouseActivity(true);
-        addAndMakeVisible(noiseActiveButton);
-        
-        //Frequency Slider and other Freq Control Elements
-        if( config.hasFrequencyControl )
-        {
-            //Frequency Slider
-            frequencySlider.setSliderStyle(config.level_slider_style);
-            frequencySlider.setRange (20, 20000);
-            frequencySlider.setValue (440, juce::dontSendNotification);
-            frequencySlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 90, 20);
-            frequencySlider.onValueChange = [this]()
-            {
-                if(AudioComponent_periodic)
-                    AudioComponent_periodic->SetFrequency((float)frequencySlider.getValue());
-                else
-                    printf("WARNING: Periodic Audio Component Not Attached to GUI\r\n");
-            };
-            addAndMakeVisible(frequencySlider);
-            
-            //Relative Frequency Button
-            syncButton.setClickingTogglesState (true);
-            syncButton.setButtonText("Sync");
-//            relativeFreqButton.setState(juce::Button::buttonDown);  //Why DOESN'T THIS WORK? Had to use triggerClick() instead.
-            syncButton.triggerClick();
-//            relativeFreqButton.changeWidthToFitText();
-            syncButton.onClick = [this] { syncButtonClicked(); };
-            addAndMakeVisible(syncButton);
-            
-        }else{  //Noise Generator (No Freq control)
-            ComponentWidth = 100;
+        switch( config.gui_type ){
+            case SIG_GEN_GUI_TYPE_NOISE:
+                ComponentWidth = 100;                   //Narrower Component for Noise GUI
+                break;
+            case SIG_GEN_GUI_TYPE_PERIODIC:
+                //Default the first Periodic Sig Gen GUI as the Sync Talker
+                if( objectInstanceCounts.count_per_type[SIG_GEN_GUI_TYPE_PERIODIC] == 1)
+                    SetAsSyncTalker();
+                AddFrequencyControl();
+                break;
+            default: break;
         }
     }
     
@@ -141,23 +120,43 @@ public:
     }
     
     //Set The Sync State of the GUI. i.e. Is this SigGen Synced to the f0 of it's voice group.
+    
+    //configures this instance as the Sync Talker for it's sync group
+    void SetAsSyncTalker( void ){
+        syncSettings.isSyncTalker = true;
+        SetSyncState(false);
+        
+        //Test for All SigGenGuiInstances, ensuring all other members of this sync group are not set to talker.
+//        for( unsigned int i = 0; i < GetObjectInstanceCount(); i++ ){
+//            if(( SigGenVoiceGuiList[i]->syncSettings.syncGroup == syncSettings.syncGroup ) &&   //matching syncGroup
+//               ( SigGenVoiceGuiList[i]->config.gui_type == config.gui_type ) &&                 //matching type
+//               ( SigGenVoiceGuiList[i]->syncSettings.isSyncTalker == true)
+//            ){
+//                SigGenVoiceGuiList[i]->syncSettings.isSyncTalker = false;
+//                //Redraw gui as a sync Listener
+//                SigGenVoiceGuiList[i]->SetSyncState(true);      //TODO: refactor with "sync listener" terminology;
+//            }
+//        }
+    }
+        
     void SetSyncState( bool state ){
-        isSynced = state;
+        syncSettings.isSynced = state;
         syncButton.setClickingTogglesState (state);
         syncButtonClicked();
     }
-    
-    ~SigGenVoiceGUI(){}     //TODO: Delete Graphical Components in Constructor.
 
     void paint (juce::Graphics& g) override {
         //Draw Bounding Box
-        g.setColour (juce::Colours::darkturquoise);
+        if( syncSettings.isSyncTalker )
+            g.setColour (juce::Colours::red);
+        else
+            g.setColour (juce::Colours::darkturquoise);
+        
         g.drawRoundedRectangle(0, 0, getWidth(), getHeight(), 10, 2);
     }
     
     void resized() override {
 //        const unsigned int noise_active_button_pos_y = getHeight() - 60;
-
         const unsigned int X_CentreLine = getWidth() >> 1;
         const unsigned int X_ThirdLine = getWidth() * 0.333333;
         
@@ -165,7 +164,7 @@ public:
         titleLabel.setCentrePosition( X_CentreLine, 20);
         titleLabel.setJustificationType( juce::Justification::centredTop );
         
-        if( config.hasFrequencyControl ){
+        if( config.gui_type == SIG_GEN_GUI_TYPE_PERIODIC ){
             levelSlider.setBounds (10, 40, 100, 150);
             levelSlider.setCentrePosition( X_ThirdLine, 120);
             frequencySlider.setBounds( 50, 20, 100, 150);
@@ -174,7 +173,7 @@ public:
             syncButton.setBounds( 0, 240, 30, 30);
             syncButton.changeWidthToFitText();
             
-        }else{
+        }else if( config.gui_type == SIG_GEN_GUI_TYPE_NOISE ){
             levelSlider.setBounds (10, 40, 100, 150);
             levelSlider.setCentrePosition( X_CentreLine, 120);
         }
@@ -195,7 +194,15 @@ public:
 #endif
 
 private:
+    
     config_t config;
+    
+    std::vector<SigGenVoiceGUI*> SigGenVoiceGuiList;
+    
+    typedef struct ObjectInstanceCounts_S{
+        unsigned int count_per_type[N_SIG_GEN_GUI_TYPES];
+    }object_instance_counts_t;
+    static object_instance_counts_t objectInstanceCounts;
     
     juce::Slider levelSlider;
     juce::Slider frequencySlider;
@@ -234,23 +241,98 @@ private:
             printf("WARNING: Audio Component Not Attached to GUI\r\n");
     }
     
+    void AddLabels( void )
+    {
+        //Title and Other Text Labels
+        titleLabel.setText (config.Title, juce::dontSendNotification);
+        addAndMakeVisible(titleLabel);
+    }
+    
+    void AddLevelControl( void )
+    {
+        //Level Slider
+        levelSlider.setSliderStyle(config.level_slider_style);
+        levelSlider.setRange (config.level_slider_range.min, config.level_slider_range.max);
+        levelSlider.setValue (config.slider_level, juce::dontSendNotification);
+        levelSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 90, 20);
+        levelSlider.onValueChange = [this]()
+        {
+            if(AudioComponent)
+                AudioComponent->SetAmplitude((float)levelSlider.getValue());
+            else
+                printf("WARNING: Audio Component Not Attached to GUI\r\n");
+        };
+        addAndMakeVisible(levelSlider);
+    }
+    
+    void AddMuteButton( void )
+    {
+        //Add "Noise Active" Button:
+        noiseActiveButton.onClick = [this]() {      //attach click callback
+            noiseActiveButtonClicked();
+        };
+        
+        noiseActiveButton.setClickingTogglesState(true);                        //Enable Button Toggling
+        noiseActiveButton.setToggleState(false, juce::dontSendNotification);    //Set initial Toggle State
+        noiseActiveButtonClicked();                                             //Call the buttonClick() Function to initialise all states.
+//        noiseActiveButton.setRepaintsOnMouseActivity(true);
+        addAndMakeVisible(noiseActiveButton);
+    }
+    
+    void AddFrequencyControl( void )
+    {
+        //Frequency Slider
+        frequencySlider.setSliderStyle(config.level_slider_style);
+        frequencySlider.setRange (20, 20000);
+        frequencySlider.setValue (440, juce::dontSendNotification);
+        frequencySlider.setTextBoxStyle (juce::Slider::TextBoxAbove, false, 90, 20);
+        frequencySlider.onValueChange = [this]()
+        {
+            if(AudioComponent_periodic)
+                AudioComponent_periodic->SetFrequency((float)frequencySlider.getValue());
+            else
+                printf("WARNING: Periodic Audio Component Not Attached to GUI\r\n");
+        };
+        addAndMakeVisible(frequencySlider);
+        
+        //Sync Button
+        if( syncSettings.isSyncTalker == false ){
+            syncButton.setButtonText("Sync");
+            syncButton.setClickingTogglesState (true);
+            syncButton.onClick = [this] { syncButtonClicked(); };
+            addAndMakeVisible(syncButton);
+
+    //            relativeFreqButton.setState(juce::Button::buttonDown);  //Why DOESN'T THIS WORK? Had to use triggerClick() instead.
+            syncButton.triggerClick();
+        }
+//            relativeFreqButton.changeWidthToFitText();
+ 
+    }
+    
     //Sync Active Button Handling (Frequency and Amplitude Sync)
-    bool isSynced = true;
+    typedef struct SyncSettings_S{
+        bool isSyncTalker = false;      //else sync listener
+        bool isSynced = true;
+        unsigned int syncGroup = 0;     //Not yet implemented, but this would allow multiple sync groups with their own sync master.
+    }sync_settings_t;
+    
+    sync_settings_t syncSettings;
+   
     void syncButtonClicked( void )
     {
         if( syncButton.getToggleStateValue() == true )
-            isSynced = true;
+            syncSettings.isSynced = true;
         else
-            isSynced = false;
+            syncSettings.isSynced = false;
             
     }
-    
-    
     //==============================================================================
     
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SigGenVoiceGUI)
 };
+//Static Member Definitions
+SigGenVoiceGUI::object_instance_counts_t SigGenVoiceGUI::objectInstanceCounts;
 
 
 //==============================================================================
@@ -269,9 +351,10 @@ public:
             
             if( noise_gen == 0 ){
                 SigGenGUI_config.Title = "White Noise";
+                SigGenGUI_config.gui_type = SigGenVoiceGUI::SIG_GEN_GUI_TYPE_NOISE;
             }else{
                 SigGenGUI_config.Title = "Sig Gen " + std::to_string(noise_gen);
-                SigGenGUI_config.hasFrequencyControl = true;
+                SigGenGUI_config.gui_type = SigGenVoiceGUI::SIG_GEN_GUI_TYPE_PERIODIC;
             }
             
             sigGenVoiceGUI[noise_gen].Init( &SigGenGUI_config );
