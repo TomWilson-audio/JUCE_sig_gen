@@ -79,7 +79,6 @@ public:
                 objectInstanceCounts.count_per_type[type] = 0;      //Zero All Counters for Each Type (They are incremented during config)
             }
         }
-        printf("SigGenGuiConstructor. Instance Num = %d\r\n", GetObjectInstanceCount());      //Object Instance Count TEST
     }
     ~SigGenVoiceGUI(){}
     
@@ -104,6 +103,7 @@ public:
                 //Default the first Periodic Sig Gen GUI as the Sync Talker
                 if( objectInstanceCounts.count_per_type[SIG_GEN_GUI_TYPE_PERIODIC] == 1)
                     SetAsSyncTalker();
+                
                 AddFrequencyControl();
                 break;
             default: break;
@@ -156,13 +156,15 @@ public:
                ( GetObjectFromList(i)->syncSettings.isSyncTalker == false ) &&
                ( GetObjectFromList(i) != this )                                                 //is NOT this instance
             ){
-                printf("in SetSyncGroupTalkerFreq: SetSyncListener[%d] = %f\r\n", i, freq );
-                GetObjectFromList(i)->SetSyncListenerFrequencyRelativeToTalker( freq );
+                GetObjectFromList(i)->SetSyncListenerFrequencyRelativeToGroupTalker();
             }
         }
+        
+        //Update Freq Label
+        frequencyLabel.setText("F: " + std::to_string(freq), juce::dontSendNotification);
     }
     
-    void SetSyncListenerFrequencyRelativeToTalker( float talkerFreq )
+    void SetSyncListenerFrequencyRelativeToGroupTalker( void )
     {
         if( !AudioComponent_periodic )
             return;
@@ -171,9 +173,11 @@ public:
             printf("WARNING: Attemting to change Listener freq of non-listener GUI component\r\n");
             return;
         }
-        
-        const float freq = talkerFreq * frequencySlider.getValue();   //When configured as listener, freqSlider is muliplier of talker freq.
+
+        const float freq = GetSyncGroupTalkerFrequency() * frequencySlider.getValue();//When configured as listener, freqSlider is relative to talker freq.
         AudioComponent_periodic->SetFrequency(freq);
+        
+        frequencyLabel.setText("F: " + std::to_string(freq), juce::dontSendNotification);
             
     }
     
@@ -215,8 +219,8 @@ public:
         const unsigned int X_CentreLine = getWidth() >> 1;
         const unsigned int X_ThirdLine = getWidth() * 0.333333;
         
-        titleLabel.setBounds (10, 8, 90, 20);
-        titleLabel.setCentrePosition( X_CentreLine, 20);
+        titleLabel.setBounds (10, 10, 90, 20);
+        titleLabel.setCentrePosition( X_CentreLine, 14);
         titleLabel.setJustificationType( juce::Justification::centredTop );
         
         if( config.gui_type == SIG_GEN_GUI_TYPE_PERIODIC ){
@@ -224,6 +228,7 @@ public:
             levelSlider.setCentrePosition( X_ThirdLine, 120);
             frequencySlider.setBounds( 50, 20, 100, 150);
             frequencySlider.setCentrePosition( X_ThirdLine << 1, 100);
+            frequencyLabel.setBounds( 10, 200, 100, 30 );
             
             syncButton.setBounds( 0, 240, 30, 30);
             syncButton.changeWidthToFitText();
@@ -259,6 +264,7 @@ private:
     
     juce::Slider levelSlider;
     juce::Slider frequencySlider;
+    juce::Label frequencyLabel;
     juce::Label titleLabel;
     juce::TextButton noiseActiveButton;
     juce::ToggleButton syncButton;
@@ -332,6 +338,47 @@ private:
         addAndMakeVisible(noiseActiveButton);
     }
     
+    typedef enum{
+        FREQ_CTRL_GUI_MODE_STANDARD,
+        FREQ_CTRL_GUI_MODE_RELATIVE,
+    }freq_ctrl_gui_mode_t;
+    
+    void SetGUIFreqControlMode( freq_ctrl_gui_mode_t mode )
+    {
+        if( syncSettings.isSyncTalker  ){
+            frequencySlider.onValueChange = [this]()
+            {
+                SetSyncGroupTalkerFrequency((float)frequencySlider.getValue());
+            };
+            syncButton.setVisible(false);   //Talker can't sync to itself. Remove Sync Button.
+        }else{
+            frequencySlider.onValueChange = [this]()
+            {
+                if( syncSettings.isSynced )
+                    SetSyncListenerFrequencyRelativeToGroupTalker();
+                else{
+                    if( AudioComponent_periodic)
+                        AudioComponent_periodic->SetFrequency(frequencySlider.getValue());
+                }
+            };
+        }
+        
+        switch( mode ){
+            case FREQ_CTRL_GUI_MODE_STANDARD:
+                static const unsigned int DEFAULT_FREQ = 220;
+                frequencySlider.setRange (20, 20000);
+                frequencySlider.setValue (DEFAULT_FREQ, juce::dontSendNotification);
+                frequencyLabel.setVisible(false);
+                break;
+                
+            case FREQ_CTRL_GUI_MODE_RELATIVE:
+                frequencySlider.setRange (0.0001, 20.0);
+                frequencySlider.setValue (2.0, juce::dontSendNotification);
+                addAndMakeVisible(frequencyLabel);
+                break;
+        }
+    }
+    
     void AddFrequencyControl( void )
     {
         //Frequency Slider
@@ -340,32 +387,18 @@ private:
         
         if( syncSettings.isSyncTalker == true )     //Config for the SYNC talker (only one per group)
         {
-            frequencySlider.setRange (20, 20000);
-            frequencySlider.setValue (440, juce::dontSendNotification);
-            frequencySlider.onValueChange = [this]()
-            {
-                SetSyncGroupTalkerFrequency((float)frequencySlider.getValue());
-            };
+            SetGUIFreqControlMode( FREQ_CTRL_GUI_MODE_STANDARD );
         }
         else{      //SYNC Listener (Frequency control is relative to SYNC Talker)
-            frequencySlider.setRange (0.0, 100.0);
-            frequencySlider.setValue (3.0, juce::dontSendNotification);
-            frequencySlider.onValueChange = [this]()
-            {
-                printf("In SyncListener Slider... Set Sync Lisner Freq = %f\r\n", GetSyncGroupTalkerFrequency());
-                SetSyncListenerFrequencyRelativeToTalker( GetSyncGroupTalkerFrequency() );
-            };
-            
+            SetGUIFreqControlMode( FREQ_CTRL_GUI_MODE_RELATIVE );
 
             syncButton.setButtonText("Sync");
             syncButton.setClickingTogglesState (true);
+            syncButton.triggerClick();
             syncButton.onClick = [this] { syncButtonClicked(); };
             addAndMakeVisible(syncButton);
-
     //            relativeFreqButton.setState(juce::Button::buttonDown);  //Why DOESN'T THIS WORK? Had to use triggerClick() instead.
-            syncButton.triggerClick();
         }
-        
         
         addAndMakeVisible(frequencySlider);
 //            relativeFreqButton.changeWidthToFitText();
@@ -383,11 +416,16 @@ private:
    
     void syncButtonClicked( void )
     {
-        if( syncButton.getToggleStateValue() == true )
+        if( syncButton.getToggleStateValue() == true ){
             syncSettings.isSynced = true;
-        else
+            SetGUIFreqControlMode(FREQ_CTRL_GUI_MODE_RELATIVE);
+            SetSyncListenerFrequencyRelativeToGroupTalker();
+        }else{
             syncSettings.isSynced = false;
-            
+            SetGUIFreqControlMode(FREQ_CTRL_GUI_MODE_STANDARD);
+            if( AudioComponent_periodic )
+                AudioComponent_periodic->SetFrequency(frequencySlider.getValue());
+        }
     }
     //==============================================================================
     
