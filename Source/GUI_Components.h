@@ -104,6 +104,7 @@ public:
                 if( objectInstanceCounts.count_per_type[SIG_GEN_GUI_TYPE_PERIODIC] == 1)
                     SetAsSyncTalker();
                 
+                freqGUI_instance_n = objectInstanceCounts.count_per_type[SIG_GEN_GUI_TYPE_PERIODIC] - 1;
                 AddFrequencyControl();
                 break;
             default: break;
@@ -261,6 +262,7 @@ private:
         unsigned int count_per_type[N_SIG_GEN_GUI_TYPES];
     }object_instance_counts_t;
     static object_instance_counts_t objectInstanceCounts;
+    int freqGUI_instance_n = 0;
     
     juce::Slider levelSlider;
     juce::Slider frequencySlider;
@@ -366,14 +368,16 @@ private:
         switch( mode ){
             case FREQ_CTRL_GUI_MODE_STANDARD:
                 static const unsigned int DEFAULT_FREQ = 220;
-                frequencySlider.setRange (20, 20000);
+                frequencySlider.setRange (22, 15000);
+                frequencySlider.setSkewFactor(0.2);
                 frequencySlider.setValue (DEFAULT_FREQ, juce::dontSendNotification);
                 frequencyLabel.setVisible(false);
                 break;
                 
             case FREQ_CTRL_GUI_MODE_RELATIVE:
-                frequencySlider.setRange (0.0001, 20.0);
-                frequencySlider.setValue (2.0, juce::dontSendNotification);
+                frequencySlider.setRange (0.001, 20.0);
+                float defaultMultiplier = freqGUI_instance_n * 1.333333;
+                frequencySlider.setValue (defaultMultiplier, juce::dontSendNotification);
                 addAndMakeVisible(frequencyLabel);
                 break;
         }
