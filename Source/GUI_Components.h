@@ -480,6 +480,14 @@ public:
         g.setFont (juce::Font ("Times New Roman", 20.0f, juce::Font::bold));
         g.drawText ("Signal Sources", getLocalBounds(), juce::Justification::centredTop, true);
         
+        if(displayDiagnostics){
+            cpuUsageLabel.setText("CPU Usage:", juce::dontSendNotification);
+//            cpuUsageText.setText("0%", juce::dontSendNotification);
+            cpuUsageLabel.setBounds (10, getHeight() - 25, 100, 20);
+            cpuUsageText .setBounds (85, getHeight() - 25, 100, 20);
+            testOscsEnable.setBounds( 200, getHeight() - 25, 100, 20);
+        }
+        
         //Basic Graphics Tutorial Gubbins (for Reference):
 //        g.setColour (juce::Colours::green);
 //        g.drawLine (10, 300, 590, 300, 5);
@@ -541,11 +549,45 @@ public:
         printf("Scene Mouse Coord (%f, %f)\r\n", event.position.getX(), event.position.getY());
     }
 #endif
+    
+    /*
+     *  Show CPU Usage Labels
+     */
+    void DisplayCpuTestGUI( bool enabled )
+    {
+        displayDiagnostics = enabled;
+        if(enabled){
+            addAndMakeVisible(cpuUsageLabel);
+            addAndMakeVisible(cpuUsageText);
+            addAndMakeVisible(testOscsEnable);
+            testOscsEnable.setButtonText("CPU Test Enable");
+            testOscsEnable.changeWidthToFitText();
+            testOscsEnable.onClick = [this] {
+                //TODO: Disable/enable TestOSCs from this tick box.
+                //We could also make the number of test Oscs selectable from the GUI... which will allow us to quickly measure changes in CPU usage.
+            };
+        }else{
+            cpuUsageLabel.setVisible(false);
+            cpuUsageText.setVisible(false);
+            testOscsEnable.setVisible(false);
+        }
+    }
+    
+    void SetCpuUsagePercentage( juce::String percentage )
+    {
+        cpuUsageText.setText(percentage, juce::dontSendNotification);
+    }
 
 private:
     
     enum { N_SIG_GEN_VOICE_GUIS = 10 };
     SigGenVoiceGUI sigGenVoiceGUI[N_SIG_GEN_VOICE_GUIS];     //TODO: Change to std::vector so the Num Voices can be changed Dynamically
+    
+    //Diagnostics;
+    juce::Label cpuUsageLabel;
+    juce::Label cpuUsageText;
+    juce::ToggleButton testOscsEnable;
+    bool displayDiagnostics = false;
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SceneComponent)

@@ -56,10 +56,11 @@
 #include "GUI_Components.h"
 #include "SigGen.h"
 
+#define RUN_SIG_GEN_CPU_TEST              //TODO: Create a class called TestOscillators, this can encapsulate the whole CPU test (and other tests!)
+
 //==============================================================================
-class MainContentComponent   :  public juce::AudioAppComponent
-//                                public juce::Button::Listener,
-//                                public juce::Slider::Listener
+class MainContentComponent   :  public juce::AudioAppComponent,
+                                public juce::Timer
 {
 public:
     MainContentComponent()
@@ -87,6 +88,11 @@ public:
         for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++ ){
             GUI_TopScene.AttachPeriodicAudioComponentToGuiComponent(&SineOscs[sine_osc_n], sine_osc_n + 1);
         }
+        
+#ifdef RUN_SIG_GEN_CPU_TEST
+        GUI_TopScene.DisplayCpuTestGUI(true);
+        startTimer (100);        //Run CPU timer.
+#endif
     }
 
     ~MainContentComponent() override
@@ -104,13 +110,27 @@ public:
         WhiteNoise_0.SetAmplitude(0.1);             //Init Level.
         setSize (1560, 512);
         
-        static const float Base_Hz = 440.0;
-        for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++){
+        static const float Base_Hz = 220.0;
+        for (unsigned int sine_osc_n = 0; sine_osc_n < N_SINE_WAVE_OSCS; sine_osc_n++)
+        {
             SineOscs[sine_osc_n].Mute(true);
             SineOscs[sine_osc_n].SetSampleRate( sampleRate );
             SineOscs[sine_osc_n].SetFrequency(Base_Hz);
             SineOscs[sine_osc_n].SetAmplitude(0.1);
         }
+        
+#ifdef RUN_SIG_GEN_CPU_TEST
+        static const float testHz_base = 40.0;
+        static const float testHz_range = 2000.0;
+        static const float testHz_increment = testHz_range / (float)N_CPU_TEST_OSCS;
+        for (unsigned int testOsc_n = 0; testOsc_n < N_CPU_TEST_OSCS; testOsc_n++ )
+        {
+            CPU_TestOscs[testOsc_n].Mute(false);
+            CPU_TestOscs[testOsc_n].SetSampleRate( sampleRate );
+            CPU_TestOscs[testOsc_n].SetFrequency( testHz_base + (testOsc_n * testHz_increment) );
+            CPU_TestOscs[testOsc_n].SetAmplitude(0.0005);
+        }
+#endif
         
         resetParameters();
     }
@@ -126,6 +146,12 @@ public:
             for( unsigned int osc_n = 0; osc_n < N_SINE_WAVE_OSCS; osc_n++){
                 output+= SineOscs[osc_n].getSample();
             }
+            
+#ifdef RUN_SIG_GEN_CPU_TEST
+            for( unsigned int osc_n = 0; osc_n < N_CPU_TEST_OSCS; osc_n++){
+                output+= CPU_TestOscs[osc_n].getSample();
+            }
+#endif
             
             for (auto channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel){
                 bufferToFill.buffer->setSample (channel, sample, output);
@@ -145,6 +171,13 @@ public:
     {
     }
     
+    //CPU Timer Callback
+    void timerCallback() override
+    {
+        auto cpu = deviceManager.getCpuUsage() * 100;
+        GUI_TopScene.SetCpuUsagePercentage( std::to_string(cpu) );
+    }
+    
 private:
     SceneComponent GUI_TopScene;            //Absolute Top Level Scene for the Main Content Component
     
@@ -152,7 +185,12 @@ private:
     WhiteNoiseGen WhiteNoise_0;
     SineWaveOscillator SineOscs[N_SINE_WAVE_OSCS];
     
-    static const unsigned int N_SIG_GENS = 2; //TODO: There should be a Config Class that contains N_SIG Gens etc... so it can be reference by GUI and Audio System
+#ifdef RUN_SIG_GEN_CPU_TEST
+    //Vague Benchmark: This Macbook Pro cannot handle 400 * SigGens with calls to sin().. Let's compare to interpolated.
+    static const unsigned int N_CPU_TEST_OSCS = 200;
+    SineWaveOscillator CPU_TestOscs[N_CPU_TEST_OSCS];
+#endif
+    
   
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainContentComponent)
 };
