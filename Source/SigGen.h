@@ -7,6 +7,9 @@
  *
  *  TODO:
  *  1) Templated Class to enable variable sample type (helpful for embedded 16-bit sigGens)
+ *
+ *  READING:
+ *  1) Look into MinBLEPs https://www.experimentalscene.com/articles/minbleps.php
  */
 
 #pragma once

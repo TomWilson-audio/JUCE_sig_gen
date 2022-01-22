@@ -47,6 +47,7 @@
 /*
  *  TODO:
  *      - The Whole Button/Slider Listener design isn't very scalable. It would be a lot cleaner if the Audio Sign Gen Objects were attached to GUI objects.
+ *      - Set Up a CPU profiling mode for an excessive number of simultaneous Sines. This will allow comparison of sin(), LUT, CORDIC, Polynomial, Bhaskara etc... Sine methods...
  */
 
 
