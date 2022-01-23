@@ -90,6 +90,7 @@ public:
         }
         
 #ifdef RUN_SIG_GEN_CPU_TEST
+        GUI_TopScene.SetMaxNumTestOscs( MAX_N_CPU_TEST_OSCS );
         GUI_TopScene.DisplayCpuTestGUI(true);
         startTimer (100);        //Run CPU timer.
 #endif
@@ -122,8 +123,8 @@ public:
 #ifdef RUN_SIG_GEN_CPU_TEST
         static const float testHz_base = 40.0;
         static const float testHz_range = 2000.0;
-        static const float testHz_increment = testHz_range / (float)N_CPU_TEST_OSCS;
-        for (unsigned int testOsc_n = 0; testOsc_n < N_CPU_TEST_OSCS; testOsc_n++ )
+        static const float testHz_increment = testHz_range / (float)MAX_N_CPU_TEST_OSCS;
+        for (unsigned int testOsc_n = 0; testOsc_n < MAX_N_CPU_TEST_OSCS; testOsc_n++ )
         {
             CPU_TestOscs[testOsc_n].Mute(false);
             CPU_TestOscs[testOsc_n].SetSampleRate( sampleRate );
@@ -149,7 +150,10 @@ public:
             
 #ifdef RUN_SIG_GEN_CPU_TEST
             if( GUI_TopScene.GetOscCpuTestState() ){
-                for( unsigned int osc_n = 0; osc_n < N_CPU_TEST_OSCS; osc_n++){
+                unsigned int n_testOscs = GUI_TopScene.GetNumTestOscs();
+                if (n_testOscs > MAX_N_CPU_TEST_OSCS ) n_testOscs = MAX_N_CPU_TEST_OSCS;
+                for( unsigned int osc_n = 0; osc_n < n_testOscs; osc_n++)
+                {
                     output+= CPU_TestOscs[osc_n].getSample();
                 }
             }
@@ -189,8 +193,11 @@ private:
     
 #ifdef RUN_SIG_GEN_CPU_TEST
     //Vague Benchmark: This Macbook Pro cannot handle 400 * SigGens with calls to sin().. Let's compare to interpolated.
-    static const unsigned int N_CPU_TEST_OSCS = 200;
-    SineWaveOscillator CPU_TestOscs[N_CPU_TEST_OSCS];
+    enum{
+        MAX_N_CPU_TEST_OSCS = 250,
+    };
+
+    SineWaveOscillator CPU_TestOscs[MAX_N_CPU_TEST_OSCS];
 #endif
     
   

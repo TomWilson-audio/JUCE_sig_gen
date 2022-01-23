@@ -482,10 +482,10 @@ public:
         
         if(displayDiagnostics){
             cpuUsageLabel.setText("CPU Usage:", juce::dontSendNotification);
-//            cpuUsageText.setText("0%", juce::dontSendNotification);
             cpuUsageLabel.setBounds (10, getHeight() - 25, 100, 20);
             cpuUsageText .setBounds (85, getHeight() - 25, 100, 20);
-            testOscsEnable.setBounds( 200, getHeight() - 25, 100, 20);
+            testOscsEnable.setBounds( 180, getHeight() - 25, 100, 20);
+            inputText_testOscCount.setBounds( 300, getHeight() - 25, 100, 20);
         }
         
         //Basic Graphics Tutorial Gubbins (for Reference):
@@ -562,10 +562,21 @@ public:
             addAndMakeVisible(testOscsEnable);
             testOscsEnable.setButtonText("CpuTestOscs");
             testOscsEnable.changeWidthToFitText();
-            testOscsEnable.onClick = [this] {
-                //TODO: Disable/enable TestOSCs from this tick box.
-                //We could also make the number of test Oscs selectable from the GUI... which will allow us to quickly measure changes in CPU usage.
+            
+            addAndMakeVisible(inputText_testOscCount);
+            inputText_testOscCount.setEditable(true);
+            inputText_testOscCount.setColour (juce::Label::backgroundColourId, juce::Colours::darkslategrey);
+            inputText_testOscCount.setText( std::to_string(n_testOscs),juce::dontSendNotification);
+            inputText_testOscCount.onTextChange = [this] {
+                juce::String input = inputText_testOscCount.getText();
+                n_testOscs = std::atoi(input.toStdString().c_str());
+                if( n_testOscs > MAX_N_TEST_OSCS){
+                    n_testOscs = MAX_N_TEST_OSCS;
+                    inputText_testOscCount.setText( std::to_string(n_testOscs),juce::dontSendNotification);
+                }
+                printf("n_TestOscs = %d\r\n", n_testOscs);
             };
+        
         }else{
             cpuUsageLabel.setVisible(false);
             cpuUsageText.setVisible(false);
@@ -577,10 +588,20 @@ public:
         return testOscsEnable.getToggleState();
     }
     
+    unsigned int GetNumTestOscs( void ){
+        return n_testOscs;
+    }
+    
     void SetCpuUsagePercentage( juce::String percentage )
     {
         cpuUsageText.setText(percentage, juce::dontSendNotification);
     }
+    
+    void SetMaxNumTestOscs( const unsigned int value ){
+        MAX_N_TEST_OSCS = value;
+    }
+    
+    
 
 private:
     
@@ -590,8 +611,11 @@ private:
     //Diagnostics;
     juce::Label cpuUsageLabel;
     juce::Label cpuUsageText;
+    juce::Label inputText_testOscCount;
     juce::ToggleButton testOscsEnable;
     bool displayDiagnostics = false;
+    unsigned int n_testOscs = 200;
+    unsigned int MAX_N_TEST_OSCS = n_testOscs;     //default to 200 before configuring by audio engine.
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SceneComponent)
