@@ -560,7 +560,7 @@ public:
             addAndMakeVisible(cpuUsageLabel);
             addAndMakeVisible(cpuUsageText);
             addAndMakeVisible(testOscsEnable);
-            testOscsEnable.setButtonText("CPU Test Enable");
+            testOscsEnable.setButtonText("CpuTestOscs");
             testOscsEnable.changeWidthToFitText();
             testOscsEnable.onClick = [this] {
                 //TODO: Disable/enable TestOSCs from this tick box.
@@ -571,6 +571,10 @@ public:
             cpuUsageText.setVisible(false);
             testOscsEnable.setVisible(false);
         }
+    }
+    
+    bool GetOscCpuTestState( void ){
+        return testOscsEnable.getToggleState();
     }
     
     void SetCpuUsagePercentage( juce::String percentage )

@@ -148,8 +148,10 @@ public:
             }
             
 #ifdef RUN_SIG_GEN_CPU_TEST
-            for( unsigned int osc_n = 0; osc_n < N_CPU_TEST_OSCS; osc_n++){
-                output+= CPU_TestOscs[osc_n].getSample();
+            if( GUI_TopScene.GetOscCpuTestState() ){
+                for( unsigned int osc_n = 0; osc_n < N_CPU_TEST_OSCS; osc_n++){
+                    output+= CPU_TestOscs[osc_n].getSample();
+                }
             }
 #endif
             
@@ -175,7 +177,7 @@ public:
     void timerCallback() override
     {
         auto cpu = deviceManager.getCpuUsage() * 100;
-        GUI_TopScene.SetCpuUsagePercentage( std::to_string(cpu) );
+        GUI_TopScene.SetCpuUsagePercentage( std::to_string(cpu) + "%");
     }
     
 private:
