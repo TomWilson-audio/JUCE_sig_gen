@@ -531,12 +531,12 @@ public:
      *  Attach Audio Component to GUI Component
      */
     void AttachAudioComponentToGuiComponent( SigGen* AudioComponent, const unsigned int Gui_index ){
-//        if( Gui_index >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
+        jassert( Gui_index < N_SIG_GEN_VOICE_GUIS );
         sigGenVoiceGUI[Gui_index].AttachAudioComponent( AudioComponent );
     }
     
     void AttachPeriodicAudioComponentToGuiComponent( PeriodicOscillator* AudioComponent, const unsigned int Gui_index ){
-//        if( Gui_index >= N_SIG_GEN_VOICE_GUIS )        //TODO: Assert, rather than return NULL
+        jassert( Gui_index < N_SIG_GEN_VOICE_GUIS );
         sigGenVoiceGUI[Gui_index].AttachAudioComponent_Periodic( AudioComponent );
     }
     
@@ -551,7 +551,7 @@ public:
 #endif
     
     /*
-     *  Show CPU Usage Labels
+     *  Show CPU Usage Labels & Controls
      */
     void DisplayCpuTestGUI( bool enabled )
     {

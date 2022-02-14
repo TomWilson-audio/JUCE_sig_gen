@@ -47,7 +47,7 @@
 /*
  *  TODO:
  *      - The Whole Button/Slider Listener design isn't very scalable. It would be a lot cleaner if the Audio Sign Gen Objects were attached to GUI objects.
- *      - Set Up a CPU profiling mode for an excessive number of simultaneous Sines. This will allow comparison of sin(), LUT, CORDIC, Polynomial, Bhaskara etc... Sine methods...
+ *      - FM and AM modulation controls for Audio Objects.
  */
 
 
@@ -58,6 +58,51 @@
 
 #define RUN_SIG_GEN_CPU_TEST              //TODO: Create a class called TestOscillators, this can encapsulate the whole CPU test (and other tests!)
 
+/*
+ *  Wavetable Test
+ */
+class WavetableOscillator
+{
+public:
+    WavetableOscillator (const juce::AudioSampleBuffer& wavetableToUse)
+        : wavetable (wavetableToUse),
+          tableSize (wavetable.getNumSamples() - 1)
+    {
+        jassert (wavetable.getNumChannels() == 1);
+    }
+
+    void setFrequency (float frequency, float sampleRate)
+    {
+        auto tableSizeOverSampleRate = (float) tableSize / sampleRate;
+        tableDelta = frequency * tableSizeOverSampleRate;
+    }
+
+    forcedinline float getNextSample() noexcept
+    {
+        auto index0 = (unsigned int) currentIndex;
+        auto index1 = index0 + 1;
+
+        auto frac = currentIndex - (float) index0;
+
+        auto* table = wavetable.getReadPointer (0);
+        auto value0 = table[index0];
+        auto value1 = table[index1];
+
+        auto currentSample = value0 + frac * (value1 - value0);
+
+        if ((currentIndex += tableDelta) > (float) tableSize)
+            currentIndex -= (float) tableSize;
+
+        return currentSample;
+    }
+
+private:
+    const juce::AudioSampleBuffer& wavetable;
+    const int tableSize;
+    float currentIndex = 0.0f, tableDelta = 0.0f;
+};
+
+
 //==============================================================================
 class MainContentComponent   :  public juce::AudioAppComponent,
                                 public juce::Timer
@@ -65,6 +110,7 @@ class MainContentComponent   :  public juce::AudioAppComponent,
 public:
     MainContentComponent()
     {
+        printf("\r\n******** MainComponent Constructor Called *********\r\n");
         addAndMakeVisible (&GUI_TopScene);     //Add Top Level, Parent Scene for the GUI
 
         // Some platforms require permissions to open input channels so request that here
@@ -94,6 +140,8 @@ public:
         GUI_TopScene.DisplayCpuTestGUI(true);
         startTimer (100);        //Run CPU timer.
 #endif
+        
+        printf("\r\n******** MainComponent Constructor COMPLETED *********\r\n");     //NOTE: The constructor seems to be interrupted by Audio Function Calls
     }
 
     ~MainContentComponent() override
@@ -102,9 +150,10 @@ public:
         shutdownAudio();
     }
 
-    void prepareToPlay (int, double sampleRate) override
+    //WARNING: prepareToPlay() gets called before MainContentComponent() constructor has completed execution. Presumably from a System interrupt.
+    void prepareToPlay (int samplesPerBlockExpected, double sampleRate) override
     {
-        printf("\r\nPrepare To Play: SR = %f\r\n", sampleRate);
+        printf("\r\nPrepare To Play: SR = %f. Expected Samples Per Block = %d\r\n", sampleRate, samplesPerBlockExpected );
         
         //TODO: Set (or update) SampleRate For All Oscillators
         WhiteNoise_0.Mute(true);                    //Init Muted.
@@ -119,6 +168,25 @@ public:
             SineOscs[sine_osc_n].SetFrequency(Base_Hz);
             SineOscs[sine_osc_n].SetAmplitude(0.1);
         }
+        
+        createWavetable();
+        
+        //Wavetable Osc Test:
+        auto* WT_oscillator = new WavetableOscillator (sineTable);
+        WT_oscillator->setFrequency ((float) 220.0, (float) sampleRate);
+        WT_oscillators.add (WT_oscillator);
+        
+        //TEST: Print Some WT Synthesizer Values
+        printf("\r\nTesting WaveTable OSC. Printing Samples....\r\n");
+        for( unsigned int i = 0; i < 256; i++ ){
+            float sample = WT_oscillator->getNextSample();
+            if( sample != sample ){ //check for NaN
+                printf("\tWT_Osc Sample[%d] = NaN\r\n", i);
+            }else{
+                printf("\tWT_Osc Sample[%d] = %f\r\n", i, sample );
+            }
+        }
+        /////////////////////////////////////////////////////////////////////////////
         
 #ifdef RUN_SIG_GEN_CPU_TEST
         static const float testHz_base = 40.0;
@@ -138,15 +206,21 @@ public:
 
     void getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill) override
     {
+        bufferToFill.clearActiveBufferRegion();
+        
         auto numSamplesRemaining = bufferToFill.numSamples;
         
         for (auto sample = 0; sample < numSamplesRemaining; ++sample)
         {
-            //TODO: Sum and Mix all Generated Signals
             float output = WhiteNoise_0.getSample();
             for( unsigned int osc_n = 0; osc_n < N_SINE_WAVE_OSCS; osc_n++){
                 output+= SineOscs[osc_n].getSample();
             }
+            
+//          ************* WaveTable Osc Test: ****************
+            float testOut = WT_oscillators.getUnchecked(0)->getNextSample();        //TODO: There's something very wrong here. Outputting Nan
+            output += testOut * WT_level;
+            /////////////////////////////////////////////////////////////
             
 #ifdef RUN_SIG_GEN_CPU_TEST
             if( GUI_TopScene.GetOscCpuTestState() ){
@@ -190,6 +264,32 @@ private:
     static const unsigned int N_SINE_WAVE_OSCS = 9;
     WhiteNoiseGen WhiteNoise_0;
     SineWaveOscillator SineOscs[N_SINE_WAVE_OSCS];
+    
+    //Wavetable Testing
+    const unsigned int tableSize = 1 << 7;     
+    float WT_level = 0.5f;
+    juce::AudioSampleBuffer sineTable;
+    juce::OwnedArray<WavetableOscillator> WT_oscillators;
+    
+    void createWavetable()
+    {
+        sineTable.setSize (1, (int) tableSize);
+        auto* samples = sineTable.getWritePointer (0);
+ 
+        auto angleDelta = juce::MathConstants<double>::twoPi / (double) (tableSize - 1);
+        auto currentAngle = 0.0;
+        
+        printf("\r\nCreating Wavetable:\r\n\r\n");
+ 
+        for (unsigned int i = 0; i < tableSize; ++i)
+        {
+            auto sample = std::sin (currentAngle);
+            samples[i] = (float) sample;
+            currentAngle += angleDelta;
+            
+            printf("\tWT[%d] = %f\r\n", i, samples[i]);
+        }
+    }
     
 #ifdef RUN_SIG_GEN_CPU_TEST
     //Vague Benchmark: This Macbook Pro cannot handle 400 * SigGens with calls to sin().. Let's compare to interpolated.
