@@ -22,10 +22,8 @@ public:
     }
     virtual ~SigGen(){}
     
-    virtual float CalcSample() = 0;         //Calc Sample is specialised for all signal types.
-    
-    float getSample( void ){
-        UpdateAmplitude();
+    inline float GetSample( void ){
+        UpdateAmplitude();              //TODO: This is too much overhead for GetSample()... especially containing an if... try with a mask. 
         return CalcSample();
     }
     
@@ -63,6 +61,8 @@ public:
     }
     
 protected:
+    inline virtual float CalcSample() = 0;         //Calc Sample is overriden and specialised for all signal types.
+    
     static constexpr float PI = 3.141592653589793238L;
     static constexpr float TWO_PI = PI * 2;
     
@@ -118,17 +118,23 @@ public:
     PeriodicOscillator(){}
     ~PeriodicOscillator(){}
     
-    void SetSampleRate( float rate ){
+    void SetSampleRate( float rate )
+    {
+        if (fS == rate )
+            return;
         fS = rate;
+        SetFrequency( frequency );      //Change in Sample Rate will alter cycles per sample calc.
     }
     
     void SetFrequency(float f)
     {
-        cyclesPerSample = f / (float)fS;
+        frequency = f;
+        cyclesPerSample = frequency / (float)fS;
         angleDelta = cyclesPerSample * TWO_PI;
 //        printf("SetFreq: CyclesPerSample = %f, angleDelta = %f\r\n", cyclesPerSample, angleDelta);
     }
     
+protected:
     void updateAngle()
     {
         currentAngle += angleDelta;
@@ -136,8 +142,8 @@ public:
             currentAngle = 0;
     }
     
-protected:
     float fS = 48000;       //default to 48K.
+    float frequency = 220.0;       //default frequency to 220Hz;
     float cyclesPerSample;
     float currentAngle = 0.0, angleDelta = 0.0;
     
@@ -178,4 +184,61 @@ public:
     }
     
 private:
+};
+
+/*
+ *  Wavetable Oscillator (Must provide a WaveTable to constructor)
+ *  //TODO: Should inherit from "PeriodicOscillator"... except SetFreq would have to be overriden to account for Table Size
+ */
+class WavetableOscillator : public SigGen
+{
+public:
+    
+    WavetableOscillator (const juce::AudioSampleBuffer& wavetableToUse) //TODO: remove juce dependency by using std array/vector
+        : wavetable (wavetableToUse),
+          tableSize (wavetable.getNumSamples() - 1)
+    {
+        jassert (wavetable.getNumChannels() == 1);
+    }
+    ~WavetableOscillator(){}
+
+    void SetFrequency (float frequency )
+    {
+        auto tableSizeOverSampleRate = (float) tableSize / fS;      //This can be calc'd with every change to table or fS. Not required here! Could be a lot of calls to setFreq with Freq Modulation!!!;
+        tableDelta = frequency * tableSizeOverSampleRate;
+    }
+    
+    void SetSampleRate( float rate )
+    {
+        if (fS == rate )
+            return;
+        fS = rate;
+        SetFrequency( frequency );      //Change in Sample Rate will alter cycles per sample calc.
+    }
+
+    forcedinline float CalcSample() noexcept override
+    {
+        auto index0 = (unsigned int) currentIndex;
+        auto index1 = index0 + 1;
+
+        auto frac = currentIndex - (float) index0;
+
+        auto* table = wavetable.getReadPointer (0);
+        auto value0 = table[index0];
+        auto value1 = table[index1];
+
+        auto currentSample = value0 + frac * (value1 - value0);
+
+        if ((currentIndex += tableDelta) > (float) tableSize)
+            currentIndex -= (float) tableSize;
+
+        return currentSample;
+    }
+
+private:
+    const juce::AudioSampleBuffer& wavetable;           //TODO: remove juce dependency by using std array/vector
+    const int tableSize;
+    float currentIndex = 0.0f, tableDelta = 0.0f;
+    float fS = 48000.0f;       //default to 48K;
+    float frequency = 220.0f;
 };

@@ -58,50 +58,6 @@
 
 #define RUN_SIG_GEN_CPU_TEST              //TODO: Create a class called TestOscillators, this can encapsulate the whole CPU test (and other tests!)
 
-/*
- *  Wavetable Test
- */
-class WavetableOscillator
-{
-public:
-    WavetableOscillator (const juce::AudioSampleBuffer& wavetableToUse)
-        : wavetable (wavetableToUse),
-          tableSize (wavetable.getNumSamples() - 1)
-    {
-        jassert (wavetable.getNumChannels() == 1);
-    }
-
-    void setFrequency (float frequency, float sampleRate)
-    {
-        auto tableSizeOverSampleRate = (float) tableSize / sampleRate;
-        tableDelta = frequency * tableSizeOverSampleRate;
-    }
-
-    forcedinline float getNextSample() noexcept
-    {
-        auto index0 = (unsigned int) currentIndex;
-        auto index1 = index0 + 1;
-
-        auto frac = currentIndex - (float) index0;
-
-        auto* table = wavetable.getReadPointer (0);
-        auto value0 = table[index0];
-        auto value1 = table[index1];
-
-        auto currentSample = value0 + frac * (value1 - value0);
-
-        if ((currentIndex += tableDelta) > (float) tableSize)
-            currentIndex -= (float) tableSize;
-
-        return currentSample;
-    }
-
-private:
-    const juce::AudioSampleBuffer& wavetable;
-    const int tableSize;
-    float currentIndex = 0.0f, tableDelta = 0.0f;
-};
-
 
 //==============================================================================
 class MainContentComponent   :  public juce::AudioAppComponent,
@@ -173,31 +129,26 @@ public:
         
         //Wavetable Osc Test:
         auto* WT_oscillator = new WavetableOscillator (sineTable);
-        WT_oscillator->setFrequency ((float) 220.0, (float) sampleRate);
+        WT_oscillator->SetSampleRate(sampleRate);
+        WT_oscillator->SetFrequency ((float) 220.0);
+        WT_oscillator->SetAmplitude(0.2f);
         WT_oscillators.add (WT_oscillator);
         
-        //TEST: Print Some WT Synthesizer Values
-        printf("\r\nTesting WaveTable OSC. Printing Samples....\r\n");
-        for( unsigned int i = 0; i < 256; i++ ){
-            float sample = WT_oscillator->getNextSample();
-            if( sample != sample ){ //check for NaN
-                printf("\tWT_Osc Sample[%d] = NaN\r\n", i);
-            }else{
-                printf("\tWT_Osc Sample[%d] = %f\r\n", i, sample );
-            }
-        }
-        /////////////////////////////////////////////////////////////////////////////
         
 #ifdef RUN_SIG_GEN_CPU_TEST
+        SineWaveOscillator CPU_TestOscs[MAX_N_CPU_TEST_OSCS];
+
         static const float testHz_base = 40.0;
         static const float testHz_range = 2000.0;
         static const float testHz_increment = testHz_range / (float)MAX_N_CPU_TEST_OSCS;
         for (unsigned int testOsc_n = 0; testOsc_n < MAX_N_CPU_TEST_OSCS; testOsc_n++ )
         {
-            CPU_TestOscs[testOsc_n].Mute(false);
-            CPU_TestOscs[testOsc_n].SetSampleRate( sampleRate );
-            CPU_TestOscs[testOsc_n].SetFrequency( testHz_base + (testOsc_n * testHz_increment) );
-            CPU_TestOscs[testOsc_n].SetAmplitude(0.0005);
+            CpuTestOscillators.push_back(CPU_TestOscs[testOsc_n]);
+            
+            CpuTestOscillators.at(testOsc_n).Mute(false);
+            CpuTestOscillators.at(testOsc_n).SetSampleRate( sampleRate );
+            CpuTestOscillators.at(testOsc_n).SetFrequency( testHz_base + (testOsc_n * testHz_increment) );
+            CpuTestOscillators.at(testOsc_n).SetAmplitude(0.0005);
         }
 #endif
         
@@ -212,14 +163,13 @@ public:
         
         for (auto sample = 0; sample < numSamplesRemaining; ++sample)
         {
-            float output = WhiteNoise_0.getSample();
+            float output = WhiteNoise_0.GetSample();
             for( unsigned int osc_n = 0; osc_n < N_SINE_WAVE_OSCS; osc_n++){
-                output+= SineOscs[osc_n].getSample();
+                output+= SineOscs[osc_n].GetSample();
             }
             
 //          ************* WaveTable Osc Test: ****************
-            float testOut = WT_oscillators.getUnchecked(0)->getNextSample();        //TODO: There's something very wrong here. Outputting Nan
-            output += testOut * WT_level;
+            output += WT_oscillators.getUnchecked(0)->GetSample();
             /////////////////////////////////////////////////////////////
             
 #ifdef RUN_SIG_GEN_CPU_TEST
@@ -228,7 +178,7 @@ public:
                 if (n_testOscs > MAX_N_CPU_TEST_OSCS ) n_testOscs = MAX_N_CPU_TEST_OSCS;
                 for( unsigned int osc_n = 0; osc_n < n_testOscs; osc_n++)
                 {
-                    output+= CPU_TestOscs[osc_n].getSample();
+                    output+= CpuTestOscillators.at(osc_n).GetSample();
                 }
             }
 #endif
@@ -266,10 +216,16 @@ private:
     SineWaveOscillator SineOscs[N_SINE_WAVE_OSCS];
     
     //Wavetable Testing
-    const unsigned int tableSize = 1 << 7;     
-    float WT_level = 0.5f;
+    const unsigned int tableSize = 1 << 7;
     juce::AudioSampleBuffer sineTable;
     juce::OwnedArray<WavetableOscillator> WT_oscillators;
+    
+    std::vector<SineWaveOscillator> CpuTestOscillators;
+    
+    //Vague Benchmark: This Macbook Pro cannot handle 400 * SigGens with calls to sin().. Let's compare to interpolated.
+    enum{
+        MAX_N_CPU_TEST_OSCS = 250,
+    };
     
     void createWavetable()
     {
@@ -278,28 +234,14 @@ private:
  
         auto angleDelta = juce::MathConstants<double>::twoPi / (double) (tableSize - 1);
         auto currentAngle = 0.0;
-        
-        printf("\r\nCreating Wavetable:\r\n\r\n");
- 
+    
         for (unsigned int i = 0; i < tableSize; ++i)
         {
             auto sample = std::sin (currentAngle);
             samples[i] = (float) sample;
             currentAngle += angleDelta;
-            
-            printf("\tWT[%d] = %f\r\n", i, samples[i]);
         }
     }
-    
-#ifdef RUN_SIG_GEN_CPU_TEST
-    //Vague Benchmark: This Macbook Pro cannot handle 400 * SigGens with calls to sin().. Let's compare to interpolated.
-    enum{
-        MAX_N_CPU_TEST_OSCS = 250,
-    };
-
-    SineWaveOscillator CPU_TestOscs[MAX_N_CPU_TEST_OSCS];
-#endif
-    
   
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainContentComponent)
 };
