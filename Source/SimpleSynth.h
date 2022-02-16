@@ -128,7 +128,8 @@ public:
         createWavetable();
         
         //Wavetable Osc Test:
-        auto* WT_oscillator = new WavetableOscillator (sineTable);
+        auto* WT_oscillator = new WavetableOscillator();
+        WT_oscillator->AttachWaveTable(sineTable);
         WT_oscillator->SetSampleRate(sampleRate);
         WT_oscillator->SetFrequency ((float) 220.0);
         WT_oscillator->SetAmplitude(0.2f);
@@ -218,6 +219,7 @@ private:
     //Wavetable Testing
     const unsigned int tableSize = 1 << 7;
     juce::AudioSampleBuffer sineTable;
+    
     juce::OwnedArray<WavetableOscillator> WT_oscillators;
     
     std::vector<SineWaveOscillator> CpuTestOscillators;

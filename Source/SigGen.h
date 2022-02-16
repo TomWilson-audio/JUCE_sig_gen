@@ -194,13 +194,21 @@ class WavetableOscillator : public SigGen
 {
 public:
     
-    WavetableOscillator (const juce::AudioSampleBuffer& wavetableToUse) //TODO: remove juce dependency by using std array/vector
+    WavetableOscillator():wavetable(NULL_Table){ //TODO: Warning!!!! Default constructor should attach a default wavetable... Otherwise a NULL WaveTable could be used!!!! Could replace this with a default Sine Table!!!! While allowing the wavetable to be specified in overloaded constructor and changed at RunTime. 
+    };
+    
+    WavetableOscillator (juce::AudioSampleBuffer& wavetableToUse) //TODO: remove juce dependency by using std array/vector
         : wavetable (wavetableToUse),
           tableSize (wavetable.getNumSamples() - 1)
     {
         jassert (wavetable.getNumChannels() == 1);
     }
     ~WavetableOscillator(){}
+    
+    void AttachWaveTable( const juce::AudioSampleBuffer& wavetableToUse ){
+        wavetable = wavetableToUse;
+        tableSize = wavetable.getNumSamples() - 1;
+    }
 
     void SetFrequency (float frequency )
     {
@@ -236,8 +244,10 @@ public:
     }
 
 private:
-    const juce::AudioSampleBuffer& wavetable;           //TODO: remove juce dependency by using std array/vector
-    const int tableSize;
+    juce::AudioSampleBuffer NULL_Table;            //TODO: Terrible form!!! Obviously get rid of this when juce::AudioSampleBuffer is replaced with standard array
+    juce::AudioSampleBuffer& wavetable;           //TODO: remove juce dependency by using std array/vector
+    int tableSize;
+    
     float currentIndex = 0.0f, tableDelta = 0.0f;
     float fS = 48000.0f;       //default to 48K;
     float frequency = 220.0f;
